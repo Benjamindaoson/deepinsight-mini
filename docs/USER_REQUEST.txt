@@ -1,0 +1,2249 @@
+我建议把备用方案正式升级为 **DeepInsight Mini — London Office Market Intelligence Agent**。
+
+这不是一个简单的聊天机器人，也不是把现有 DeepInsight Lite 缩小，而是重新设计一套**轻量、可靠、监测优先、面向商业用户的 AI 情报产品**。
+
+整个方案围绕招聘题目的两个交付要求：可交互的 Python AI Agent，以及 3–6 页业务演示 PPT。
+
+# 一、最终架构决策
+
+我的建议是：
+
+**不用 Agno、LangGraph、CrewAI 等 Agent 框架，但充分利用成熟的开源工具。**
+
+采用以下组合：
+
+| 模块 | 技术选型 | 作用 |
+|---|---|---|
+| AI Agent | Python + Model SDK + Tool Calling | 自主选择研究工具、分析市场 |
+| 数据采集 | httpx + feedparser + Trafilatura | 获取新闻、研究报告和网页正文 |
+| PDF 研究 | PyMuPDF | 提取研究报告中的文本和页码 |
+| 页面变化监测 | Python 内容指纹，必要时接 changedetection.io | 识别数据源更新 |
+| 任务调度 | Linux systemd timer / Windows Task Scheduler | 每天早晚自动执行 |
+| 数据持久化 | SQLite | 保存来源、指标、历史、事件和报告 |
+| 通知引擎 | Apprise + SMTP | Telegram、邮件及其他通知 |
+| Web 产品 | FastAPI + Jinja2 + HTMX | 轻量但专业的业务界面 |
+| 高质量报告 | Jinja2 + HTML/CSS + Playwright PDF | 自动生成专业 HTML、PDF |
+| 可视化 | Matplotlib SVG | 生成可核验的趋势图 |
+| 自动化验收 | pytest + Playwright | 真实模型与浏览器操作验证 |
+
+选这些工具是有依据的。feedparser 专注 RSS/Atom，Trafilatura 专注网页正文和元数据提取，Apprise 支持多种通知渠道，Playwright 可以将 HTML 页面渲染为 PDF。它们都能作为 Python 项目里的独立组件使用。[GitHub](https://github.com/kurtmckee/feedparser?utm_source=chatgpt.com)
+
+**关于 changedetection.io：** 它确实很适合监测复杂网站，支持网页变化检测、筛选器和通知，也提供 API。但它需要运行另一项服务，所以我建议先用内置内容指纹实现核心监测，仅在普通 HTTP 采集无法满足需求时再接入它。[GitHub](https://github.com/dgtlmoon/changedetection.io?utm_source=chatgpt.com)
+
+## 二、监测应该怎么实现？
+
+这是整个产品的核心。
+
+我建议同时实现三种监测机制。
+
+| 类型 | 监测方式 | 业务价值 |
+|---|---|---|
+| 新闻事件监测 | 检查新文章、新规划公告、新租赁事件 | 尽早发现市场风险和机会 |
+| 指标变化监测 | 保存历史数据，比较不同统计期 | 判断租金、空置率、供应等变化 |
+| 来源更新监测 | 识别机构发布新报告或修改已有资料 | 避免错过重要市场信息 |
+
+核心流程：
+
+**定时触发 → 数据采集 → 新旧比较 → 证据核验 → AI 分析 → 生成报告 → 自动推送。**
+
+默认使用伦敦时间：
+
+- **08:00：Morning Market Brief。** 汇总上一次简报以来的新信息、重要指标和市场事件。
+- **18:00：Evening Market Update。** 总结白天新增的重要动态和需要关注的问题。
+- **重大事件：** 可在下一次定时检查时标记高优先级，满足条件后触发单独预警。
+- **没有重要变化：** 正常生成简短的无重大变化摘要，避免 AI 为了写报告而编造内容。
+
+重要的是，监测程序和网页服务独立运行。**即使没人打开网页，只要部署服务器正常运行，定时任务仍然能够执行。**
+
+## 三、业务报告应该是什么样？
+
+不是普通聊天回答，也不是几千字连续文本。
+
+我希望采用专业商业地产研究报告的形式：
+
+**LONDON OFFICE INTELLIGENCE**
+
+*Morning Market Brief | 19 October 2026*
+
+页面顶部展示报告统计截止时间、数据覆盖状态及关键变化数量。
+
+第一部分是 **Executive Summary**，用 3–5 条信息告诉业务经理今天最值得关注什么。
+
+第二部分是 **Market Signals**，用简洁的指标卡、变化箭头和可比趋势图展示租金、空置率、租赁活动和供应变化。只有证据符合标准的指标才能进入图表。
+
+第三部分是 **What Changed & Why It Matters**，列出新事件、变化证据、可能影响的区域及其商业意义。
+
+第四部分是 **Risks & Opportunities**，严格区分已核实事实、AI 推断和待进一步调查的问题。
+
+最后是 **Sources & Methodology**，包含原始来源链接、统计期间、指标定义及数据限制。
+
+每份报告同时提供网页版、PDF 下载版及适合邮件阅读的 HTML 版本。
+
+---
+
+# 四、直接交给 Codex 的完整开发者提示词
+
+下面这份是正式开发指令，已经包含产品需求、架构、开源选型、数据源、Skills、Agent 设计、监测算法、调度、推送、报告、前端、部署、测试、成本和阶段验收。
+
+# DeepInsight Mini
+# London Office Market Intelligence Agent
+## 完整产品研发与交付指令 V1.0
+
+你是一名同时具备 AI Agent 架构、Python 全栈开发、数据工程、市场情报系统及产品设计能力的高级工程师。
+
+现在需要你独立开发一套可运行、可交互、能够主动监测伦敦办公地产市场并向业务人员定期推送专业报告的 AI Agent PoC。
+
+本项目用于完成以下招聘技术测评：
+
+**Build an AI Agent for Monitoring the London Office Market**
+
+原题要求：
+
+1. A testable AI agent PoC with Python code that can be run and interacted with.
+2. A few slides, 3–6 maximum, explaining the AI agent directly to the business team.
+
+项目代号：
+
+**DeepInsight Mini**
+
+产品名称：
+
+**London Office Intelligence**
+
+---
+
+# 0. 最重要的执行原则
+
+本项目的目标不是证明我们能够使用多少框架，而是用最少的系统复杂度，快速交付具有真实市场研究能力、主动监测能力和专业商业报告能力的 AI Agent。
+
+必须遵循：
+
+1. 使用现成、成熟、轻量的开源 Python 组件。
+2. 不引入 Agno、LangGraph、CrewAI 或复杂多 Agent 框架。
+3. 保留真正的 Agent Tool Calling 能力。
+4. 主动监测是核心功能，不是附属演示。
+5. 专业报告是核心产品交付物。
+6. 真实数据优先，不允许伪造市场信息。
+7. 使用真实模型 API 进行最终验收。
+8. 不允许用模拟模型冒充真实 AI 运行成功。
+9. 不允许通过合成变化冒充真实市场变化。
+10. 每个阶段必须实际运行、测试和保存证据。
+11. 优先修复影响完整业务闭环的问题。
+12. 不进行无关的工程重构。
+13. 尽量减少 API 调用成本。
+14. 必须保护用户提供的 API Key。
+15. 必须保证普通非技术人员能够使用产品。
+
+这是一个面向业务用户的产品，不是开发者工具。
+
+---
+
+# 1. 项目目录与现有项目隔离
+
+创建新目录：
+
+`D:\deepinsight-mini`
+
+现有项目：
+
+`D:\deepinsight-lite`
+
+两者必须完全隔离。
+
+禁止修改、覆盖、重置或清理 DeepInsight Lite 的代码、数据库及历史验收文件。
+
+允许只读检查 Lite 中已经实现的组件、数据源配置、报告模板或公开原文。
+
+但不得直接将 Lite 中未审核的市场事实导入 Mini 的正式发布数据集。
+
+优先复用成熟开源库及已经验证的设计，而不是复制 Lite 的复杂架构。
+
+---
+
+# 2. 产品定位
+
+产品名称：
+
+London Office Intelligence
+
+一句话定位：
+
+**An AI-powered market intelligence agent that continuously monitors London's office market, detects meaningful changes, and delivers actionable business briefings.**
+
+目标用户：
+
+伦敦商业地产资产管理人员、投资研究人员、业务运营经理及其他非技术背景的商业团队成员。
+
+主要业务场景：
+
+- 每天早上自动收到伦敦办公市场简报。
+- 每天下午或晚上收到当天的重要市场更新。
+- 发现重要变化时收到单独预警。
+- 通过聊天界面提出市场研究问题。
+- 自动分析 City、West End、Canary Wharf 等子市场。
+- 查看某项指标的历史变化。
+- 自动生成专业研究报告。
+- 查询报告引用的原始来源。
+- 调整关注区域、指标、监测频率和收件人。
+
+用户不应该需要理解 Python、API、数据库、Agent 或 Workflow 才能使用这些功能。
+
+---
+
+# 3. 技术架构
+
+采用单一 Python 项目。
+
+推荐组件：
+
+Backend：
+- Python 3.11+
+- FastAPI
+- Pydantic
+- httpx
+- SQLite
+
+AI：
+- 当前用户授权模型对应的 Python SDK
+- 模型原生 Tool Calling
+- 结构化 JSON 输出
+- Pydantic 校验
+
+Data Collection：
+- feedparser
+- Trafilatura
+- PyMuPDF
+- httpx
+
+Monitoring：
+- SQLite historical snapshots
+- Content hashing
+- Semantic deduplication
+- Deterministic metric comparison
+- Configurable alert rules
+
+Scheduling：
+- Python CLI
+- Linux systemd timer
+- Windows Task Scheduler
+
+Notifications：
+- Apprise
+- SMTP HTML Email
+- Telegram（通过已配置的官方 Bot 接口）
+
+Reporting：
+- Jinja2
+- HTML/CSS
+- Matplotlib
+- Playwright Chromium PDF
+
+Frontend：
+- FastAPI
+- Jinja2
+- HTMX
+- 少量原生 JavaScript
+
+Testing：
+- pytest
+- Playwright
+
+不要另外部署 Redis、Celery、Kafka、Elasticsearch、PostgreSQL 或独立向量数据库。
+
+此阶段不需要。
+
+可选增强：
+
+changedetection.io。
+
+仅在普通 HTTP 采集无法可靠监测目标网站且确实有必要时接入。
+
+不得将其设为默认必需依赖。
+
+---
+
+# 4. 总体系统架构
+
+实现如下业务链路：
+
+```text
+                    USER
+                     |
+          +----------+----------+
+          |                     |
+       Web UI              Email / Telegram
+          |                     ^
+          v                     |
+     FastAPI Server        Notification Engine
+          |                     ^
+          v                     |
+       AI Agent             Report Engine
+          |                     ^
+          v                     |
+      Skill Router          Insight Engine
+          |                     ^
+          v                     |
+  +-------+-------+             |
+  |       |       |             |
+Search  Data   Compare          |
+  |       |       |             |
+  +-------+-------+-------------+
+          |
+     SQLite Store
+          ^
+          |
+   Monitoring Pipeline
+          ^
+          |
+   Source Collectors
+          ^
+          |
+   Scheduler / Timer
+```
+
+需要明确区分：
+
+**Interactive Agent**
+
+由用户的自然语言问题触发。
+
+**Monitoring Pipeline**
+
+由时间计划触发，不依赖用户打开网页。
+
+**Insight Engine**
+
+由有效市场事实或事件触发，负责生成受证据约束的业务解释。
+
+两个入口复用相同的 Skills 和数据层。
+
+不要实现两套互不兼容的数据采集、事实存储或报告生成系统。
+
+---
+
+# 5. 数据源策略
+
+优先使用公开、可访问、可信、可追溯的数据。
+
+## 5.1 机构市场研究报告
+
+优先检查：
+
+- Savills
+- JLL
+- CBRE
+- Knight Frank
+- BNP Paribas Real Estate
+- Cushman & Wakefield
+
+重点寻找公开的：
+
+- Central London Office Market Reports
+- City Office Market Reports
+- West End Office Market Reports
+- Leasing Market Updates
+- Vacancy and Supply Reports
+- Development Pipeline Reports
+
+必须实际验证目标页面是否可访问，是否允许所采用的采集方式，以及正文和指标是否可以可靠提取。
+
+不要预设所有机构都有免费 API。
+
+不得绕过付费墙或访问控制。
+
+对于不适合全文存储的来源，只保留允许使用的必要元数据、链接和简短引用。
+
+## 5.2 官方宏观经济数据
+
+优先：
+
+- Bank of England
+- Office for National Statistics
+- Greater London Authority
+- London Datastore
+
+重点：
+
+- Bank Rate
+- Inflation
+- UK employment
+- London employment
+- Economic growth
+- Business confidence（有可靠数据时）
+
+注意：
+
+宏观指标和办公地产指标不是同一个概念。
+
+不得直接将英国宏观变化解释成伦敦办公楼租金变化。
+
+## 5.3 城市规划与供应
+
+重点来源：
+
+- City of London planning information
+- Tower Hamlets planning information
+- Westminster planning information
+- 其他相关地方政府公开规划资料
+
+监测：
+
+- New development
+- Refurbishment
+- Planning application
+- Planning approval
+- Development completion
+- Pre-let
+
+必须区分：
+
+申请、批准、开工、竣工和预租。
+
+不能把规划申请当成确定新增供应。
+
+## 5.4 新闻与企业租赁事件
+
+通过经过验证的 RSS、机构公告和公开网页发现：
+
+- 新租赁交易
+- 大型企业搬迁
+- 新增办公需求
+- 租赁面积变化
+- 大型写字楼开发
+- 公司扩张或裁员
+- ESG 与办公空间需求相关事件
+
+所有新闻必须保存：
+
+- Title
+- Publisher
+- Original URL
+- Publication Date
+- Discovery Date
+- Geography
+- Event Type
+- Source Evidence
+
+对于无法获得完整正文的新闻，可以保存标题、摘要和链接。
+
+但不能根据标题推断尚未证实的数字或交易细节。
+
+---
+
+# 6. 数据源必须做成可配置注册表
+
+创建：
+
+`config/sources.yaml`
+
+每个来源至少包含：
+
+```yaml
+id: savills_london_office
+name: Savills London Office Research
+type: research
+enabled: true
+collection_method: html
+priority: high
+geographies:
+  - City
+  - West End
+topics:
+  - rent
+  - vacancy
+  - take_up
+  - supply
+check_frequency: daily
+```
+
+还需要保存：
+
+- 经过验证的具体 URL 或数据发现入口
+- 来源最后成功抓取时间
+- 最近错误
+- 公开访问状态
+- 采集方式
+- 允许的重试次数
+- 超时限制
+
+示例只是配置结构，不代表来源已经连通。
+
+真实开发时必须验证 URL 和提取效果。
+
+---
+
+# 7. AI Agent 的设计
+
+只实现一个核心 AI Agent。
+
+不要把每个 Skill 都包装成独立 Agent。
+
+Agent 应具有：
+
+- 自主选择工具
+- 多步骤调查
+- 必要时追加查询
+- 基于结果调整研究方向
+- 整合不同来源证据
+- 检查证据不足
+- 生成结构化业务解释
+- 输出自然语言回答
+
+Agent 必须使用实际模型 API。
+
+不允许把一段普通 Prompt 加上固定模板称为 Agent。
+
+## 7.1 Agent Tool Calling
+
+创建：
+
+`agent.py`
+
+Agent 的基本执行过程：
+
+```text
+User Question
+      |
+      v
+Understand Intent
+      |
+      v
+Select Tools
+      |
+      v
+Execute Skills
+      |
+      v
+Inspect Evidence
+      |
+      v
+Need More Evidence?
+   |        |
+  Yes       No
+   |        |
+   v        v
+More Tools  Synthesis
+            |
+            v
+       Verify Claims
+            |
+            v
+       Final Answer
+```
+
+设置：
+
+- 最大工具调用轮数
+- 单轮超时
+- 最大总运行时间
+- 模型请求预算
+- 错误与异常处理
+- 循环调用保护
+
+模型产生的任何市场结论，都必须经过来源和事实状态核验。
+
+模型不得直接修改已审核事实、预警状态或历史快照。
+
+---
+
+# 8. Skills 设计
+
+实现六种业务能力。
+
+Skills 可以是普通 Python 模块和可调用函数。
+
+必须有实际输入、输出及错误处理。
+
+## Skill 1：Market Research
+
+文件：
+
+`skills/research.py`
+
+负责：
+
+- 理解研究区域和主题
+- 查询 SQLite 中的已有资料
+- 检索允许访问的公开来源
+- 返回可引用的研究证据
+- 按相关性和时间排序结果
+
+优先使用已有证据，避免每次提问都重新爬取互联网。
+
+初期可使用 SQLite FTS5 进行全文检索。
+
+不需要引入向量数据库。
+
+## Skill 2：Source Reader
+
+文件：
+
+`skills/source_reader.py`
+
+负责：
+
+- 读取网页正文
+- 解析 PDF
+- 提取标题、日期与发布者
+- 保存原始文件哈希
+- 提供原始引文和页码
+- 标记无法提取或无法验证的来源
+
+必须防止网页正文中的提示注入改变 Agent 系统指令。
+
+来自外部网站的文字只能视为资料，不能视为执行指令。
+
+## Skill 3：Market Data
+
+文件：
+
+`skills/market_data.py`
+
+负责：
+
+- 提取 Prime Rent
+- 提取 Grade A Rent
+- 提取 Vacancy
+- 提取 Availability
+- 提取 Take-up
+- 提取 Supply
+- 提取 Pre-let
+- 提取相关宏观数据
+
+结构化事实至少包含：
+
+```json
+{
+  "metric": "vacancy_rate",
+  "geography": "West End",
+  "period": "2026Q2",
+  "value": 6.7,
+  "unit": "percent",
+  "definition": "overall vacancy",
+  "publisher": "example",
+  "source_id": "source-001",
+  "evidence_text": "original quote",
+  "page": 5,
+  "review_status": "pending"
+}
+```
+
+以上数值和来源名称只是数据结构示例，不允许作为真实市场结果直接导入。
+
+必须保留原始数据和审核状态。
+
+## Skill 4：Market Compare
+
+文件：
+
+`skills/compare.py`
+
+负责：
+
+- 同指标比较
+- 同地域比较
+- 同定义比较
+- 历史变化计算
+- 单位核验
+- 趋势判定
+- 不可比结果拦截
+
+比较由 Python 确定性执行。
+
+不能让 LLM 自行编造比较值。
+
+例如：
+
+Vacancy 7.2% → 7.0%
+
+结果：
+
+-0.2 percentage points
+
+同时应计算相对变化，但不能将两个概念混淆。
+
+如果缺乏可比数据，返回：
+
+`NOT_COMPARABLE`
+
+并说明原因。
+
+## Skill 5：Market Monitor
+
+文件：
+
+`skills/monitor.py`
+
+这是最重要的 Skill。
+
+负责：
+
+- 监测来源更新
+- 检测新文章
+- 检测新报告
+- 识别新闻事件
+- 比较已保存指标
+- 判断变化的重要程度
+- 去重
+- 创建监测事件
+- 触发分析任务
+
+具体算法见下一章节。
+
+## Skill 6：Market Report
+
+文件：
+
+`skills/report.py`
+
+负责：
+
+- 组织研究结果
+- 生成 Executive Summary
+- 生成 Market Signals
+- 生成 Risks & Opportunities
+- 生成 Watchlist
+- 生成来源列表
+- 输出 HTML/PDF
+- 生成适合邮件展示的内容
+
+必须复用一套结构化报告数据。
+
+不要分别通过三次模型调用生成网页、PDF 和邮件报告。
+
+---
+
+# 9. 主动监测：核心功能
+
+必须把主动监测做成独立、可持久运行的工程闭环。
+
+完整链路：
+
+```text
+Scheduled Trigger
+       |
+       v
+Load Watchlist
+       |
+       v
+Fetch Data Sources
+       |
+       v
+Store Raw Evidence
+       |
+       v
+Detect New / Changed Content
+       |
+       v
+Extract Facts & Events
+       |
+       v
+Validate Evidence
+       |
+       v
+Compare Historical State
+       |
+       v
+Create Market Signals
+       |
+       v
+AI Business Analysis
+       |
+       v
+Generate Briefing
+       |
+       v
+Send Notification
+       |
+       v
+Store Run & Delivery Result
+```
+
+整个流程必须独立于浏览器和聊天窗口。
+
+用户关闭网页后，监测任务仍可执行。
+
+---
+
+# 10. 三层变化检测机制
+
+## 10.1 Layer 1：Source Change Detection
+
+检测来源网页、公告、RSS 和研究报告是否发生变化。
+
+需要记录：
+
+- URL
+- Canonical URL
+- Content Hash
+- Fetched At
+- Published At
+- Document Version
+- Previous Hash
+
+不要直接对完整 HTML 进行哈希。
+
+应先尽可能去除：
+
+- 导航
+- 广告
+- Cookie 提示
+- 页面脚注
+- 动态时间戳
+- 无关推荐内容
+
+然后对标准化后的主要正文计算 SHA-256。
+
+如果正文变化：
+
+创建候选更新。
+
+但注意：
+
+**网页变化不等于市场变化。**
+
+需要进一步分析正文实际变化。
+
+## 10.2 Layer 2：Event Detection
+
+提取事件：
+
+- New Lease
+- Planning Approval
+- Development Announcement
+- Office Relocation
+- Pre-let
+- Major Refurbishment
+- Company Expansion
+- Company Downsizing
+- New Market Research Report
+
+同一个事件可能被多家机构报道。
+
+必须进行去重。
+
+建议：
+
+第一层：URL / Document ID。
+
+第二层：正文指纹。
+
+第三层：事件实体与时间、地点、类型匹配。
+
+可以在必要时使用 LLM 判断复杂事件是否重复。
+
+但初期不要引入独立向量数据库。
+
+## 10.3 Layer 3：Metric Change Detection
+
+这是市场数据变化识别。
+
+保存：
+
+```text
+Metric
+Geography
+Definition
+Period
+Value
+Unit
+Source
+Review Status
+```
+
+形成历史快照。
+
+当新的有效观察数据出现时：
+
+1. 检查指标定义是否一致。
+2. 检查地域是否一致。
+3. 检查单位是否一致。
+4. 检查统计期间是否清楚。
+5. 检查新旧值是否可比。
+6. 计算变化。
+7. 判断是否达到预警阈值。
+8. 创建 Market Signal。
+
+不能用网页采集时间代替指标统计期间。
+
+如果某篇新报告只是重复发布旧数据，不得识别为新市场变化。
+
+数据被修订时，必须保留旧版本和修订记录。
+
+---
+
+# 11. 事件与数值的审核门禁
+
+必须防止出现“代码全绿，但市场事实不可信”的问题。
+
+区分：
+
+`DISCOVERED`
+
+发现新来源。
+
+`EXTRACTED`
+
+完成结构化提取。
+
+`SOURCE_VERIFIED`
+
+原文、哈希、引文、时间和来源均通过技术核验。
+
+`PENDING_REVIEW`
+
+仍有定义、地域、口径或事实疑问。
+
+`APPROVED`
+
+经过要求的审核，可用于正式定量结论。
+
+`REJECTED`
+
+不符合要求。
+
+`RETRACTED`
+
+原有事实被撤销或失效。
+
+注意：
+
+Source verified 不自动等于 Approved。
+
+不得擅自将待审数值升级为正式发布数值。
+
+对于已经验证的新机构公告，可以在简报中发布明确标注来源的事件摘要。
+
+但对于未经审核的租金、空置率、投资收益等关键定量判断，应保留审查限制。
+
+如果缺少足够的市场事实，系统可以形成：
+
+- 已确认的新来源摘要
+- 已确认的市场事件摘要
+- 数据缺口说明
+- 待审核指标清单
+
+不能生成虚假的完整市场趋势报告。
+
+---
+
+# 12. Alert Scoring
+
+每条 Market Signal 可以计算优先级。
+
+建议维度：
+
+- Source Reliability
+- Geographic Relevance
+- Market Materiality
+- Recency
+- Novelty
+- Evidence Completeness
+
+使用可解释的规则评分。
+
+模型可以建议优先级，但最终必须受证据状态和确定性门禁约束。
+
+建议分级：
+
+### CRITICAL
+
+可能对特定资产、区域或业务产生重大影响，且证据充分。
+
+### HIGH
+
+重要市场变化或重大事件。
+
+### MEDIUM
+
+值得持续关注的普通变化。
+
+### LOW
+
+一般新闻或背景信息。
+
+### INFO
+
+来源更新，但没有得到有效市场变化证据。
+
+优先级不能只根据标题中的“重大”“创纪录”等词汇判断。
+
+---
+
+# 13. 定时监测
+
+默认使用：
+
+`Europe/London`
+
+必须支持英国夏令时和冬令时。
+
+默认任务：
+
+### Morning Brief
+
+每天 08:00 伦敦时间。
+
+执行：
+
+- 检查新来源
+- 提取更新
+- 与历史状态比较
+- 汇总上次简报以来的新变化
+- 生成 Morning Brief
+- 按已配置的通知策略发送
+
+### Evening Update
+
+每天 18:00 伦敦时间。
+
+执行：
+
+- 检查当天新发布的信息
+- 汇总重要变化
+- 更新事件状态
+- 生成 Evening Update
+- 根据配置发送简报
+
+### On-demand Monitor
+
+用户通过界面点击：
+
+Run Monitor Now
+
+立即执行完整检查。
+
+所有触发方式必须复用同一个 `run_monitor()` 入口。
+
+不要写三套逻辑。
+
+## 13.1 调度方案
+
+本地 Windows 开发：
+
+Windows Task Scheduler。
+
+Linux VPS：
+
+systemd service + timer。
+
+每次启动一个独立的 Python CLI 任务。
+
+例如：
+
+```bash
+python -m deepinsight monitor --run morning
+python -m deepinsight monitor --run evening
+python -m deepinsight monitor --run once
+```
+
+需要提供可以直接安装的任务配置和相应说明。
+
+不要假设网页服务运行就等于调度器已经运行。
+
+必须分别验收。
+
+## 13.2 并发与幂等
+
+必须防止：
+
+- 两次监测同时写入。
+- 同一新闻重复入库。
+- 同一变化重复报警。
+- 同一报告重复发送。
+- 失败重试时产生重复通知。
+
+使用 SQLite 唯一约束、事务和运行锁。
+
+每次执行记录：
+
+- Run ID
+- Trigger
+- Started At
+- Finished At
+- Source Count
+- New Documents
+- New Events
+- Valid Signals
+- Report ID
+- Notification Status
+- Error Summary
+
+如果采集部分来源失败，不得将失败解释为“市场没有变化”。
+
+失败来源应标为 STALE 或 FETCH_FAILED。
+
+---
+
+# 14. 通知系统
+
+默认支持：
+
+1. Email
+2. Telegram
+
+其他渠道通过 Apprise 保留扩展接口。
+
+第一优先级：
+
+**Email。**
+
+因为业务用户更适合通过邮件阅读专业的每日市场简报。
+
+Telegram 适合接收重要事件提醒和报告链接。
+
+## 14.1 Email
+
+邮件必须是精美的 HTML，不是纯文本堆砌。
+
+内容包括：
+
+- London Office Intelligence 品牌头部
+- 日期
+- Morning / Evening 标识
+- 关键变化摘要
+- 最重要的市场信号
+- 重要指标卡
+- 新事件
+- 风险与机会
+- View Full Report 按钮
+- 原始证据链接
+
+Email 不必重复完整研究报告。
+
+需要提供：
+
+View Full Report
+
+Download PDF
+
+## 14.2 Telegram
+
+Telegram 内容更短。
+
+例如：
+
+London Office Intelligence
+
+Morning Brief
+
+2 new market events
+
+1 verified indicator update
+
+Key Signal:
+[事件摘要]
+
+Read Full Report:
+[报告链接]
+
+以上为通知格式示例，不代表真实数据。
+
+## 14.3 通知安全
+
+默认关闭外部真实发送。
+
+配置完成后，用户通过设置页执行：
+
+Send Test Notification
+
+测试成功且用户启用正式推送后，才能进入自动发送模式。
+
+需要记录：
+
+- Recipient
+- Channel
+- Message ID
+- Attempt
+- Provider Response
+- Sent / Failed / Retrying
+
+不能将服务商 API 接受请求直接描述为用户已经阅读。
+
+通知失败可以重试，但必须去重。
+
+---
+
+# 15. 报告系统：最高优先级之一
+
+必须将报告设计成真正面向业务团队的产品。
+
+不要简单地把 Markdown 内容直接显示在网页上。
+
+设计一个统一的结构化报告对象：
+
+```text
+Report
+  report_id
+  report_type
+  generated_at
+  coverage_as_of
+  executive_summary
+  market_signals
+  indicator_cards
+  event_highlights
+  risks
+  opportunities
+  watchlist
+  sources
+  methodology
+  limitations
+```
+
+这个对象同时用于：
+
+- Web Report
+- HTML Email
+- PDF
+- 历史报告重开
+
+避免不同输出版本出现事实不一致。
+
+---
+
+# 16. 视觉设计标准
+
+整体风格：
+
+**Premium Institutional Research Dashboard**
+
+参考机构级房地产市场报告，而不是 AI 聊天应用。
+
+视觉关键词：
+
+- Professional
+- Clean
+- Elegant
+- Executive
+- Evidence-driven
+- Easy to scan
+
+建议配色：
+
+深海军蓝：
+
+`#14263D`
+
+蓝绿色强调色：
+
+`#16A6A0`
+
+浅灰背景：
+
+`#F5F7FA`
+
+正文：
+
+`#263445`
+
+卡片：
+
+`#FFFFFF`
+
+风险警示：
+
+`#D97757`
+
+字体使用跨平台可正常显示的系统字体或合法可用的开源字体。
+
+避免花哨的 AI 渐变背景。
+
+页面留白充足。
+
+字体层级清晰。
+
+不要用大量密集表格占据整页。
+
+---
+
+# 17. 报告页面结构
+
+每份报告至少包含：
+
+## Section 1：Executive Summary
+
+3–5 条关键结论。
+
+读者应该在一分钟内了解：
+
+- What happened?
+- Why does it matter?
+- What should we watch next?
+
+## Section 2：Market at a Glance
+
+以指标卡形式展示：
+
+- Prime Rent
+- Grade A Rent
+- Vacancy
+- Availability
+- Take-up
+- Supply
+
+根据实际数据覆盖展示。
+
+如果指标没有可靠数据，显示：
+
+Not verified
+
+而不是填入虚构数字。
+
+## Section 3：Key Market Movements
+
+每条包含：
+
+- Signal
+- Geography
+- Observation Period
+- Change
+- Evidence
+- Confidence / Review Status
+
+## Section 4：What Changed & Why It Matters
+
+按业务意义解释事件。
+
+区分：
+
+Fact
+
+Interpretation
+
+Potential Business Implication
+
+## Section 5：Risks & Opportunities
+
+至少包含：
+
+- Risk / Opportunity
+- Supporting Evidence
+- Affected Geography
+- Why It Matters
+- What to Monitor Next
+
+证据不足时，明确标记待验证。
+
+不得生成无证据投资建议。
+
+## Section 6：Market Watchlist
+
+列出接下来需要关注：
+
+- 新报告
+- 重点租赁交易
+- 开发项目
+- 宏观事件
+- 可能需要补充的数据
+
+## Section 7：Sources & Methodology
+
+每个来源应能点击查看。
+
+包括：
+
+- Publisher
+- Title
+- URL
+- Publication Date
+- Observation Period
+- Geography
+- Evidence Status
+
+报告必须注明生成时间和数据统计期间不是同一个概念。
+
+---
+
+# 18. 图表系统
+
+图表必须专业、准确。
+
+优先实现：
+
+- Rent Trend
+- Vacancy Trend
+- Leasing Activity
+- Supply Pipeline
+- Submarket Comparison
+
+使用 Matplotlib 输出 SVG 或高质量静态图片。
+
+仅当存在足够的有效、可比观察数据时生成趋势图。
+
+缺少历史数据不得画出虚构趋势线。
+
+不能将不同机构、不同定义的数据强行拼接成连续时间序列。
+
+没有可比数据时，显示：
+
+Insufficient comparable observations.
+
+这是正常、正确的产品行为。
+
+---
+
+# 19. PDF 报告
+
+使用：
+
+Jinja2 HTML Template
+
+↓
+
+CSS Print Layout
+
+↓
+
+Playwright Chromium
+
+↓
+
+PDF
+
+PDF 要求：
+
+- A4 页面
+- 合理页边距
+- 页眉页脚
+- 页码
+- 可点击来源链接
+- 不截断重要图表
+- 不出现卡片跨页严重错位
+- 打印颜色一致
+- 无文字溢出
+
+PDF 是最终招聘演示的重要输出。
+
+必须实际生成并检查。
+
+不能只检查 HTML 是否存在。
+
+---
+
+# 20. Web 产品界面
+
+只实现五个主要页面。
+
+不要复制 Lite 的九页面复杂体系。
+
+## Page 1：Overview
+
+默认首页。
+
+内容：
+
+- Latest Briefing
+- Last Successful Monitor
+- Current Market Signals
+- Important Events
+- Watchlist Summary
+- Run Monitor Now
+- View Full Report
+
+适合业务经理每天打开查看。
+
+## Page 2：Ask AI
+
+聊天研究界面。
+
+功能：
+
+- 提出自然语言问题
+- AI 调用 Skills
+- 显示研究进度
+- 显示来源
+- 支持上下文追问
+- 保存为报告
+
+推荐预置几个示例问题。
+
+## Page 3：Market Monitor
+
+核心监测页面。
+
+内容：
+
+- Source Health
+- Last Run
+- Next Run
+- New Documents
+- New Events
+- Verified Signals
+- Alert History
+- Run Monitor Now
+
+用户应能看出系统是否真正执行监测。
+
+## Page 4：Reports
+
+内容：
+
+- Morning Brief
+- Evening Update
+- On-demand Research Reports
+- 历史报告
+- HTML/PDF 下载
+
+## Page 5：Settings
+
+非技术用户配置：
+
+- API Provider
+- Model ID
+- API Key 状态
+- Market Focus
+- Submarkets
+- Monitoring Frequency
+- Morning Time
+- Evening Time
+- Email Recipient
+- Telegram
+- Test Notification
+- Save Settings
+
+API Key 不应重新显示完整值。
+
+设置需要持久化，刷新页面后不能丢失。
+
+设置操作需要适当访问控制，避免任何访问网页的人都能修改密钥或发送通知。
+
+---
+
+# 21. 用户交互体验
+
+目标是：
+
+用户不需要培训就能操作。
+
+主页必须清楚展示：
+
+**Last successful market check**
+
+不能将上一次尝试运行时间冒充成功采集时间。
+
+运行监测时展示：
+
+- Collecting sources
+- Comparing updates
+- Validating evidence
+- Preparing briefing
+- Completed / Partial / Failed
+
+如果某些来源失败，显示 Partial，不得假装完全成功。
+
+聊天响应需要明确状态：
+
+- Researching
+- Reading Sources
+- Comparing Evidence
+- Generating Analysis
+- Verifying Claims
+- Completed
+
+如果模型或工具调用失败，向用户显示可理解的错误说明。
+
+不要暴露 Python Traceback 给业务用户。
+
+---
+
+# 22. 数据库设计
+
+使用 SQLite。
+
+至少需要：
+
+`sources`
+
+注册数据源。
+
+`documents`
+
+保存文档信息、来源和内容指纹。
+
+`observations`
+
+保存结构化市场指标。
+
+`events`
+
+保存市场事件及其历史状态。
+
+`monitor_runs`
+
+保存每次监测执行记录。
+
+`signals`
+
+保存变化检测结果。
+
+`reports`
+
+保存结构化报告。
+
+`notifications`
+
+保存通知执行情况。
+
+`conversations`
+
+保存研究会话。
+
+`settings`
+
+保存非敏感用户配置。
+
+需要合理设计索引和唯一约束。
+
+文件型原始文档放在独立目录，数据库保存元数据、路径和哈希。
+
+应支持：
+
+- 原始来源追溯
+- 历史版本
+- 重新生成报告
+- 重启后恢复
+- 监测幂等
+- 撤回失效信号
+
+不要在系统中保存明文 API Key。
+
+---
+
+# 23. 成本控制
+
+尽量降低调用成本。
+
+原则：
+
+**采集和比较尽量使用确定性程序，只有解释复杂变化时才使用模型。**
+
+建议：
+
+1. 没有来源变化，不调用分析模型。
+2. 有来源变化但没有业务相关内容，跳过深度分析。
+3. 优先复用已保存的研究内容。
+4. 相同问题允许缓存结果，但必须标记数据时间。
+5. 结构化提取优先使用规则和已知数据结构。
+6. 复杂事件再使用 LLM 提取。
+7. 每次请求限制 Token 和执行轮数。
+8. 设置每日请求数与 Token 预算。
+9. 记录模型调用用量。
+10. 超过预算自动停止额外调用并报告原因。
+
+预算限制必须真实执行，不能只在配置中声明。
+
+模型失败时：
+
+- 保留已采集事实。
+- 保留已识别事件。
+- 保留监测运行记录。
+- 显示 AI 分析未完成。
+
+不能因为模型失败而丢失监测数据。
+
+---
+
+# 24. 关键安全要求
+
+包括：
+
+- API Key 不进入源码和 Git。
+- `.env` 默认加入 `.gitignore`。
+- 浏览器端不能获得服务器 API Key。
+- 外部网页内容视为不可信输入。
+- 下载限制协议、主机和文件大小。
+- 防止 SSRF。
+- 设置 HTTP 超时和重试。
+- 限制 PDF 大小及解析时间。
+- 不访问未授权私人资源。
+- 遵守公开数据来源的使用条件。
+- 不绕过网站付费墙。
+- 避免保存无必要的个人数据。
+- 报告内的 HTML 内容需要转义，避免 XSS。
+- 禁止未经授权向第三方发送真实通知。
+
+如果采用公网部署，必须启用适当认证、HTTPS 和密钥保护。
+
+---
+
+# 25. 推荐项目结构
+
+```text
+D:\deepinsight-mini
+│
+├── app/
+│   ├── main.py
+│   ├── agent.py
+│   ├── config.py
+│   ├── database.py
+│   │
+│   ├── skills/
+│   │   ├── research.py
+│   │   ├── source_reader.py
+│   │   ├── market_data.py
+│   │   ├── compare.py
+│   │   ├── monitor.py
+│   │   └── report.py
+│   │
+│   ├── collectors/
+│   │   ├── rss.py
+│   │   ├── html.py
+│   │   ├── pdf.py
+│   │   └── official_api.py
+│   │
+│   ├── services/
+│   │   ├── evidence.py
+│   │   ├── changes.py
+│   │   ├── insights.py
+│   │   ├── scheduler.py
+│   │   └── notifications.py
+│   │
+│   ├── templates/
+│   │   ├── layout.html
+│   │   ├── overview.html
+│   │   ├── ask.html
+│   │   ├── monitor.html
+│   │   ├── reports.html
+│   │   ├── settings.html
+│   │   ├── briefing.html
+│   │   └── email.html
+│   │
+│   └── static/
+│       ├── styles.css
+│       └── app.js
+│
+├── config/
+│   └── sources.yaml
+│
+├── data/
+│   ├── documents/
+│   └── market.sqlite3
+│
+├── output/
+│   ├── reports/
+│   ├── screenshots/
+│   └── slides/
+│
+├── deployment/
+│   ├── linux/
+│   └── windows/
+│
+├── tests/
+│
+├── .env.example
+├── .gitignore
+├── requirements.txt
+├── README.md
+├── RUNBOOK.md
+└── pyproject.toml
+```
+
+目录可以按实际需要合理简化。
+
+不允许为了符合目录示意而创建大量空文件。
+
+每个实际创建的模块都应有明确用途。
+
+---
+
+# 26. 开发阶段与优先级
+
+按以下阶段执行。
+
+**不要先把所有页面画出来，再发现真正的监测不能运行。**
+
+## G0：环境与真实模型连通性
+
+完成：
+
+- 创建独立项目
+- 配置虚拟环境
+- 安装最小依赖
+- 配置真实模型
+- 执行一次真实 API Smoke Test
+- 输出 Provider、Model ID、调用状态及耗时
+
+验收标准：
+
+真实模型可以返回有效结果。
+
+若 API 不可用：
+
+记录 BLOCKED。
+
+可以继续完成不依赖模型的开发，但不能宣称真实 AI 验收通过。
+
+## G1：真实数据源采集
+
+完成：
+
+- 至少两个可正常访问的独立真实来源
+- HTML/RSS 采集
+- 必要的 PDF 解析
+- 原始文件保存
+- 内容指纹
+- 来源与引用定位
+
+验收：
+
+运行真实采集。
+
+重跑后不存在重复数据。
+
+能从系统追溯到原始来源。
+
+如果目标来源无法访问，记录原因并换用合法、可靠的替代来源。
+
+## G2：监测引擎
+
+完成：
+
+- 历史快照
+- 内容变化
+- 新闻去重
+- 指标比较
+- 证据检查
+- 市场信号
+- SQLite 持久化
+
+测试：
+
+A：第一次采集建立基线。
+
+B：第二次相同采集没有重复变化。
+
+C：有新增真实文档时正确识别。
+
+D：隔离测试中数值变化能够正确计算。
+
+E：不可比数据被拒绝。
+
+F：数据撤销或来源失效后，不保留错误有效预警。
+
+注意：
+
+隔离合成测试必须明确标记，不能当成真实市场变化。
+
+## G3：真实 Agent
+
+完成：
+
+- 单 Agent
+- Tool Calling
+- 6 Skills 接入
+- 多轮研究
+- 真实来源查询
+- 证据核验
+- 自然语言回答
+
+验收：
+
+模型必须实际调用至少一个 Skill。
+
+输出必须有来源。
+
+能够正确拒绝证据不足的问题。
+
+## G4：报告引擎
+
+完成：
+
+- 统一报告结构
+- 专业 HTML 报告
+- PDF
+- 图表
+- 引用
+- 风险与机会
+- 邮件版模板
+
+验收：
+
+实际生成一份真实来源支持的报告。
+
+检查 PDF 各页。
+
+不得有数据错误、文字溢出或虚构图表。
+
+## G5：调度与通知
+
+完成：
+
+- Morning Schedule
+- Evening Schedule
+- Manual Monitor
+- 持久化运行记录
+- Email HTML
+- Telegram
+- 通知去重
+- 失败重试
+
+验收：
+
+通过受控调度，实际观察至少一次由调度器触发的任务。
+
+确认任务完成、报告生成及结果持久化。
+
+先使用隔离收件端测试。
+
+外部真实收件人推送只有在明确授权和配置完成后执行。
+
+## G6：Web 产品
+
+完成：
+
+- Overview
+- Ask AI
+- Monitor
+- Reports
+- Settings
+
+验收：
+
+真实浏览器操作。
+
+必须可以：
+
+- 提问
+- 追问
+- 查看来源
+- 执行监测
+- 查看状态
+- 打开历史报告
+- 下载 PDF
+- 修改设置
+
+## G7：完整业务验收
+
+必须从真实浏览器执行全部核心流程。
+
+不能只跑 API 测试。
+
+必须分别证明：
+
+- 真实模型调用成功
+- 真实来源采集成功
+- 真实 Agent 工具调用成功
+- 历史保存成功
+- 报告生成成功
+- 用户追问成功
+- 定时任务成功
+- 通知链路成功
+- 页面重开后数据仍然存在
+
+如果某项只通过合成测试，明确标记：
+
+TEST ONLY。
+
+不能宣称真实业务通过。
+
+---
+
+# 27. 真人测试题目
+
+使用 Playwright 实际操作产品。
+
+至少执行：
+
+## Test 1
+
+“Summarise the latest verifiable developments in the London office market. Focus on City, West End and Canary Wharf. Please distinguish verified data from information that is not yet available.”
+
+## Test 2
+
+“How have prime and Grade A office rents changed in the City and West End? Only compare figures with compatible periods, definitions and units.”
+
+## Test 3
+
+“What new London office leasing or planning events have been discovered since the previous monitoring run?”
+
+## Test 4
+
+“Which changes represent meaningful business risks or opportunities, and what evidence supports them?”
+
+## Test 5
+
+“Generate an executive briefing suitable for a non-technical asset management team, with sources, charts where justified, and clear limitations.”
+
+## Test 6
+
+“Monitor the London office market now, compare the result with the previous successful snapshot, and show me exactly what changed.”
+
+每题记录：
+
+- 实际输入
+- 实际输出
+- 模型调用状态
+- Skill 调用记录
+- 引用
+- 运行时间
+- 是否通过
+- 浏览器截图
+- 失败原因
+
+不能用固定答案或历史录制结果冒充当前真实调用。
+
+---
+
+# 28. 最终幻灯片
+
+在系统完成可运行的核心流程后，生成 5 页 PPTX。
+
+面向业务团队。
+
+不超过 6 页。
+
+建议：
+
+Slide 1：
+The Business Challenge
+
+Slide 2：
+Meet London Office Intelligence
+
+Slide 3：
+How Continuous Monitoring Works
+
+Slide 4：
+Live Demo & Market Intelligence Example
+
+Slide 5：
+Business Value, Limitations & Next Steps
+
+要求：
+
+- 专业商业地产研究风格
+- 真实产品截图
+- 真实来源支持的案例
+- 清晰的业务价值
+- 明确当前 PoC 的能力边界
+- 不使用编造的 ROI 或节省时间指标
+
+---
+
+# 29. 部署要求
+
+先保证 Windows 本地可运行。
+
+再提供轻量 Linux VPS 部署方式。
+
+不得将部署到 VPS 作为本地核心功能开发的前置阻塞。
+
+需要提供：
+
+- 环境变量示例
+- 安装命令
+- 数据库初始化命令
+- 启动命令
+- 监测单次运行命令
+- Windows 定时任务安装说明
+- Linux systemd service/timer
+- 监测日志位置
+- 常见错误排查
+- 备份与恢复说明
+
+必须保证：
+
+即使没有人打开 Web 页面，只要服务器和调度器正常运行，监测任务仍能执行。
+
+同时明确：
+
+Windows 电脑关机后，本地定时任务不会继续执行。
+
+如需持续运行，应部署在长期在线的 VPS 上。
+
+---
+
+# 30. 每个阶段的汇报格式
+
+每完成一个阶段，必须提供：
+
+### Stage
+当前阶段。
+
+### Implemented
+实际完成了什么。
+
+### Source Files
+修改或新增的文件。
+
+### Commands Executed
+实际运行的命令。
+
+### Test Results
+真实测试结果。
+
+### Evidence
+日志、截图、数据库记录和报告文件。
+
+### Known Limitations
+未解决问题。
+
+### Next Priority
+下一项最重要的工作。
+
+不要只汇报“代码已经完成”。
+
+必须证明可以运行。
+
+---
+
+# 31. 最终验收标准
+
+最终判定分为：
+
+PASS
+
+真实执行成功且存在可复核证据。
+
+PARTIAL
+
+部分链路实际完成，但仍有重要限制。
+
+FAIL
+
+实际执行失败。
+
+BLOCKED
+
+缺少外部凭证、可靠数据、服务额度或授权。
+
+需要分别给出：
+
+1. Engineering Readiness
+2. Real AI Readiness
+3. Data Reliability
+4. Monitoring Readiness
+5. Report Quality
+6. Notification Delivery
+7. Business PoC Readiness
+
+不能因为单元测试全绿，就把完整业务 PoC 评为 PASS。
+
+---
+
+# 32. 立即开始执行
+
+现在开始实际开发。
+
+执行顺序：
+
+第一步：
+
+检查 Python、Node、浏览器和网络环境。
+
+第二步：
+
+创建 DeepInsight Mini 独立项目。
+
+第三步：
+
+检查真实模型配置，完成 API Smoke Test。
+
+第四步：
+
+选择并验证少量高质量真实数据源。
+
+第五步：
+
+建立数据库与来源采集。
+
+第六步：
+
+优先完成真实监测引擎。
+
+第七步：
+
+接入 Agent Skills。
+
+第八步：
+
+实现专业 HTML/PDF 报告。
+
+第九步：
+
+实现每天 08:00 和 18:00 的调度。
+
+第十步：
+
+实现邮件与 Telegram 通知。
+
+第十一步：
+
+完成精美 Web UI。
+
+第十二步：
+
+执行真实浏览器端到端测试。
+
+第十三步：
+
+生成最终交付 PPTX。
+
+不要将大量时间耗费在非必要的依赖、复杂框架或花哨的多智能体编排上。
+
+**核心优先级始终是：**
+
+真实数据 → 主动监测 → 真实 AI → 专业报告 → 自动推送 → 非技术用户交互。
+
+遇到阻塞时，优先完成不依赖该阻塞的其他部分，并明确记录状态。
+
+最终必须交付可以实际运行的代码、可交互的界面、专业报告、自动监测能力、验收证据和 5 页业务幻灯片。
+
+现在开始执行，不要只输出计划。
+
+---
+
+# 五、我额外建议 Codex 特别注意的三件事
+
+### 1. 先找到真实、可持续监测的数据源
+
+这比选择哪种 Agent 框架重要得多。
+
+例如，Savills 已公开发布 2026 年第二季度的 Central London Office Market 报告，内容涵盖 Prime/Grade A rents、vacancy、take-up、供应和部分 ESG 指标。这类报告很适合用作第一批真实来源，但必须保留各项指标的口径，不能把同一报告中的不同地域和统计期混在一起。[Savills](https://www.savills.com/research_articles/255800/393427-0?utm_source=chatgpt.com)
+
+ONS 也提供不需要 API Key 的公开数据接口，适合作为宏观指标来源，但需要验证具体数据集及版本。[ONS Developer Hub](https://developer.ons.gov.uk/?utm_source=chatgpt.com)
+
+**Mini 要优先跑通几个高质量来源，而不是先抓取几百份无法核验的资料。**
+
+### 2. 监测不能依赖 LLM 每天重新搜索全部信息
+
+正确做法是：
+
+**程序负责定时检查和发现变化，模型只负责分析新的、值得关注且证据充分的信息。**
+
+这样成本更低、重复通知更少，也更容易判断系统是否真正发现了新变化。
+
+### 3. 报告比聊天界面更重要
+
+对于非技术背景的业务经理，核心体验应该是：
+
+**早上打开邮箱 → 看到一份漂亮的市场简报 → 一分钟了解变化 → 点击进入完整报告 → 必要时向 AI 追问。**
+
+而不是让用户每天打开 AI 聊天窗口，重新问一遍伦敦写字楼市场发生了什么。
+
+---
+
+## 六、开发优先级建议
+
+| 优先级 | 功能 | 为什么 |
+|---|---|---|
+| P0 | 真实模型 API 连通 | 保证是 AI Agent，而不是模拟程序 |
+| P0 | 真实来源采集 | 保证有内容可以分析 |
+| P0 | **历史比较与主动监测** | 体现产品核心差异化 |
+| P0 | **专业 HTML/PDF 报告** | 面向业务团队的核心成果 |
+| P0 | 真实 Agent Tool Calling | 满足 AI Agent 测评要求 |
+| P1 | 每天早晚自动运行 | 完成持续监测场景 |
+| P1 | 邮件通知 | 让用户无需主动登录也能获取情报 |
+| P1 | 精美 Web 界面 | 支持交互演示 |
+| P1 | 3–6 页业务 PPT | 完成第二项正式交付 |
+| P2 | Telegram | 增加推送渠道 |
+| P2 | changedetection.io 集成 | 增强复杂网站变化检测 |
+| P2 | 多用户、权限和企业部署 | 后续扩展，不影响最小 PoC |
+
+**最后的架构判断：**
+
+DeepInsight Mini 不应该是 DeepInsight Lite 的简陋替代品，而应该是一套更聚焦的产品。
+
+Lite 强在系统完整性；Mini 应该强在**真实监测、自动分析、专业简报和低复杂度交付**。
+
+只要把“真实数据采集 → 发现变化 → AI 解释 → 生成专业报告 → 每天早晚推送”这条链路真正跑通，再配合可交互的 Python Agent 和 5 页业务演示材料，就能形成一个范围清晰、符合原题要求的有竞争力的 PoC。

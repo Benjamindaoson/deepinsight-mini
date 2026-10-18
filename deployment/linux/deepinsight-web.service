@@ -1,0 +1,16 @@
+[Unit]
+Description=London Office Intelligence web
+After=network-online.target
+[Service]
+Type=simple
+User=deepinsight
+WorkingDirectory=/opt/deepinsight-mini
+EnvironmentFile=/etc/deepinsight-mini.env
+ExecStart=/opt/deepinsight-mini/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8766
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/deepinsight-mini/data /opt/deepinsight-mini/output
+[Install]
+WantedBy=multi-user.target

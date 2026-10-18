@@ -1,0 +1,9 @@
+[Unit]
+Description=Poll London-time morning/evening briefing slots
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+Persistent=true
+Unit=deepinsight-monitor.service
+[Install]
+WantedBy=timers.target

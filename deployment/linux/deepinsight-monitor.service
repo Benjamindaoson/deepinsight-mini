@@ -1,0 +1,15 @@
+[Unit]
+Description=London Office Intelligence scheduler tick
+After=network-online.target
+[Service]
+Type=oneshot
+User=deepinsight
+WorkingDirectory=/opt/deepinsight-mini
+EnvironmentFile=/etc/deepinsight-mini.env
+ExecStart=/opt/deepinsight-mini/.venv/bin/python -m deepinsight scheduler
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/deepinsight-mini/data /opt/deepinsight-mini/output

@@ -1,0 +1,14 @@
+.venv/
+.env
+.env.*
+!.env.example
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.codegraph/
+data/
+output/
+*.egg-info/
+node_modules/
+.browsers/
+*.log

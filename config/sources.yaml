@@ -1,0 +1,100 @@
+sources:
+  - id: savills_q2_2026
+    name: Savills Central London Office Research
+    type: research
+    enabled: true
+    url: https://www.savills.com/research_articles/255800/393427-0
+    collection_method: html
+    priority: high
+    geographies: [City, West End, Central London]
+    topics: [rent, vacancy, take_up, supply]
+    check_frequency: daily
+    timeout: 25
+    retries: 1
+    storage_policy: public_research_local_audit
+    observation_period: 2026Q2
+    publication_date: '2026-08-06'
+  - id: city_silk_street
+    name: City of London Corporation
+    type: planning
+    enabled: true
+    url: https://news.cityoflondon.gov.uk/city-of-london-corporation-approves-major-office-scheme-on-silk-street/
+    collection_method: html
+    priority: high
+    geographies: [City]
+    topics: [planning_approval, supply]
+    check_frequency: daily
+    timeout: 25
+    retries: 1
+    storage_policy: public_announcement_local_audit
+  - id: city_news_feed
+    name: City of London Newsroom
+    type: news
+    enabled: true
+    url: https://news.cityoflondon.gov.uk/feed/
+    collection_method: rss
+    priority: medium
+    geographies: [City]
+    topics: [office, planning, development]
+    check_frequency: daily
+    timeout: 25
+    retries: 1
+    storage_policy: metadata_and_summary
+  - id: boe_bank_rate
+    name: Bank of England Official Bank Rate
+    type: macro
+    enabled: true
+    url: https://www.bankofengland.co.uk/boeapps/database/Bank-Rate.asp
+    collection_method: html
+    priority: high
+    geographies: [UK]
+    topics: [interest_rates]
+    check_frequency: daily
+    timeout: 20
+    retries: 0
+    storage_policy: public_official_data_local_audit
+  - id: ons_cpi
+    name: ONS CPI annual inflation D7G7
+    type: macro
+    enabled: true
+    url: https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/d7g7/mm23/data
+    collection_method: json
+    metric: cpi_inflation
+    frequency: monthly
+    priority: high
+    geographies: [UK]
+    topics: [inflation]
+    check_frequency: daily
+    timeout: 20
+    retries: 0
+    storage_policy: public_official_data_local_audit
+  - id: ons_employment
+    name: ONS employment rate LF24
+    type: macro
+    enabled: true
+    url: https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/employmentandemployeetypes/timeseries/lf24/lms/data
+    collection_method: json
+    metric: employment_rate
+    frequency: monthly
+    priority: high
+    geographies: [UK]
+    topics: [employment]
+    check_frequency: daily
+    timeout: 20
+    retries: 0
+    storage_policy: public_official_data_local_audit
+  - id: ons_gdp
+    name: ONS real GDP quarterly growth IHYQ
+    type: macro
+    enabled: true
+    url: https://www.ons.gov.uk/economy/grossdomesticproductgdp/timeseries/ihyq/pn2/data
+    collection_method: json
+    metric: gdp_growth
+    frequency: quarterly
+    priority: medium
+    geographies: [UK]
+    topics: [economic_growth]
+    check_frequency: daily
+    timeout: 20
+    retries: 0
+    storage_policy: public_official_data_local_audit
