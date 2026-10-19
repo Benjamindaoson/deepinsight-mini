@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS notifications (
  UNIQUE(report_id,channel,recipient));
 CREATE TABLE IF NOT EXISTS conversations (
  id TEXT PRIMARY KEY, created_at TEXT, updated_at TEXT, messages TEXT);
+CREATE TABLE IF NOT EXISTS conversation_owners (
+ conversation_id TEXT PRIMARY KEY, owner TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS agent_runs (
  id TEXT PRIMARY KEY, conversation_id TEXT, question TEXT, started_at TEXT,
  finished_at TEXT, status TEXT, output TEXT, trace TEXT, error TEXT);

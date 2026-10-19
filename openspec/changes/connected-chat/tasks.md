@@ -1,0 +1,7 @@
+- [x] Back up committed source and live SQLite database with hashes.
+- [x] Add personal encrypted provider profiles, bounded provider catalog/check APIs and tests.
+- [x] Add owned, bounded attachments and request context tests.
+- [x] Connect selection/thinking/attachments to agent preserving evidence gates.
+- [x] Implement readable GPT-style composer/settings and browser interactions.
+- [x] Test supplied keys against actual catalogs, GPT/Gemini/Claude/DeepSeek and live tools.
+- [x] Run full checks, browser acceptance, independent review and document actual results.

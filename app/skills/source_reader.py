@@ -1,4 +1,5 @@
 """Bounded public-source reader. Content is evidence, never executable instructions."""
+
 import hashlib
 import ipaddress
 import json
@@ -10,6 +11,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
@@ -31,8 +33,13 @@ def registry():
 
 def canonical_url(url):
     p = urlsplit(url)
-    query = urlencode(sorted((k, v) for k, v in parse_qsl(p.query)
-                             if not k.lower().startswith("utm_") and k not in {"fbclid", "gclid"}))
+    query = urlencode(
+        sorted(
+            (k, v)
+            for k, v in parse_qsl(p.query)
+            if not k.lower().startswith("utm_") and k not in {"fbclid", "gclid"}
+        )
+    )
     return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path or "/", query, ""))
 
 
@@ -46,26 +53,51 @@ def digest(content):
 
 def validate_url(url, hosts):
     p = urlsplit(url)
-    if p.scheme != "https" or p.hostname not in hosts or p.username or p.password or p.port not in (None, 443):
+    if (
+        p.scheme != "https"
+        or p.hostname not in hosts
+        or p.username
+        or p.password
+        or p.port not in (None, 443)
+    ):
         raise ValueError("Only registered HTTPS source hosts are allowed.")
     for addr in socket.getaddrinfo(p.hostname, 443, type=socket.SOCK_STREAM):
         address = ipaddress.ip_address(addr[4][0])
-        tunnel = os.getenv("MINI_TUNNEL_DNS") == "1" and any(address in net for net in (
-            ipaddress.ip_network("198.18.0.0/15"), ipaddress.ip_network("2001:2::/48")) if address.version == net.version)
+        tunnel = os.getenv("MINI_TUNNEL_DNS") == "1" and any(
+            address in net
+            for net in (ipaddress.ip_network("198.18.0.0/15"), ipaddress.ip_network("2001:2::/48"))
+            if address.version == net.version
+        )
         if not address.is_global and not tunnel:
             raise ValueError("Private and special network addresses are not allowed.")
 
 
-def download(url, hosts, timeout=25):
-    with httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=False,
-                      headers={"User-Agent": AGENT, "Accept": "text/html,application/pdf,application/rss+xml"}) as client:
+def download(url, hosts, timeout=25, *, conditional_headers=None, receipt=None):
+    with httpx.Client(
+        timeout=httpx.Timeout(timeout),
+        follow_redirects=False,
+        headers={"User-Agent": AGENT, "Accept": "text/html,application/pdf,application/rss+xml"},
+    ) as client:
         deadline = time.monotonic() + timeout
         for _ in range(4):
             validate_url(url, hosts)
-            with client.stream("GET", url) as response:
+            headers = {
+                k: v
+                for k, v in (conditional_headers or {}).items()
+                if k in {"If-None-Match", "If-Modified-Since"}
+            }
+            with client.stream("GET", url, headers=headers) as response:
                 if response.is_redirect:
                     url = urljoin(url, response.headers["location"])
                     continue
+                if receipt is not None:
+                    receipt.update(
+                        status=response.status_code,
+                        etag=response.headers.get("etag"),
+                        last_modified=response.headers.get("last-modified"),
+                    )
+                if response.status_code == 304:
+                    return b"", str(response.url), response.headers.get("content-type", "")
                 response.raise_for_status()
                 data = bytearray()
                 for chunk in response.iter_bytes():
@@ -93,11 +125,18 @@ def check_robots(url, hosts, timeout):
 
 
 def pdf_pages(path):
-    script = ("import pymupdf as fitz,json,sys; d=fitz.open(sys.argv[1]); "
-              "assert len(d)<=150,'PDF page limit'; "
-              "print(json.dumps([{'page':i+1,'text':p.get_text()} for i,p in enumerate(d)]))")
-    result = subprocess.run([sys.executable, "-c", script, str(path)], capture_output=True,
-                            timeout=20, check=True, encoding="utf-8")
+    script = (
+        "import pymupdf as fitz,json,sys; d=fitz.open(sys.argv[1]); "
+        "assert len(d)<=150,'PDF page limit'; "
+        "print(json.dumps([{'page':i+1,'text':p.get_text()} for i,p in enumerate(d)]))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(path)],
+        capture_output=True,
+        timeout=20,
+        check=True,
+        encoding="utf-8",
+    )
     return json.loads(result.stdout)
 
 
@@ -119,33 +158,97 @@ def read_source(source, data_dir=None):
     hosts |= set(source.get("allowed_redirect_hosts", []))
     timeout = min(int(source.get("timeout", 25)), 40)
     access = check_robots(source["url"], hosts, timeout)
+    root = Path(data_dir or config().data)
+    cache_file = root / "http-cache" / (digest(source["url"]) + ".json")
+    cache = {}
+    cached_bytes = None
+    try:
+        if cache_file.is_file() and cache_file.stat().st_size < 8192:
+            cache = json.loads(cache_file.read_text(encoding="utf-8"))
+            cached_path = Path(cache.get("raw_path", ""))
+            if cached_path.is_file() and cached_path.stat().st_size <= MAX_BYTES:
+                candidate = cached_path.read_bytes()
+                if digest(candidate) == cache.get("raw_hash"):
+                    cached_bytes = candidate
+    except (OSError, ValueError, TypeError):
+        cache = {}
+    conditional = {}
+    if cached_bytes is not None:
+        for field, header in [("etag", "If-None-Match"), ("last_modified", "If-Modified-Since")]:
+            value = cache.get(field)
+            if isinstance(value, str) and len(value) < 500 and "\r" not in value and "\n" not in value:
+                conditional[header] = value
+    receipt = {}
     last_error = None
-    for _ in range(min(int(source.get("retries", 1)), 2) + 1):
+    for attempt in range(min(int(source.get("retries", 1)), 2) + 1):
         try:
-            raw, url, content_type = download(source["url"], hosts, timeout)
+            raw, url, content_type = download(
+                source["url"], hosts, timeout, conditional_headers=conditional, receipt=receipt
+            )
+            if receipt.get("status") == 304:
+                if cached_bytes is None:
+                    raise ValueError("HTTP 304 has no hash-verified retained original")
+                raw = cached_bytes
+                content_type = cache.get("content_type", "")
             break
         except (httpx.HTTPError, ValueError) as exc:
             last_error = exc
+            if attempt < min(int(source.get("retries", 1)), 2):
+                time.sleep(0.3 * 2**attempt)
     else:
         raise last_error
     raw_hash = digest(raw)
-    folder = (data_dir or config().data) / "documents"
+    folder = root / "documents"
     folder.mkdir(parents=True, exist_ok=True)
     is_pdf = "pdf" in content_type or raw.startswith(b"%PDF")
     path = folder / (raw_hash + (".pdf" if is_pdf else ".bin"))
     if not path.exists():
         path.write_bytes(raw)
-    base = dict(source_id=source["id"], publisher=source["name"], raw_hash=raw_hash,
-                raw_path=str(path), geography=", ".join(source.get("geographies", [])),
-                access=access, pages=[])
+    if receipt.get("status") != 304:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(
+            json.dumps(
+                dict(
+                    raw_path=str(path),
+                    raw_hash=raw_hash,
+                    url=url,
+                    content_type=content_type,
+                    etag=receipt.get("etag"),
+                    last_modified=receipt.get("last_modified"),
+                )
+            ),
+            encoding="utf-8",
+        )
+    base = dict(
+        source_id=source["id"],
+        publisher=source["name"],
+        raw_hash=raw_hash,
+        raw_path=str(path),
+        geography=", ".join(source.get("geographies", [])),
+        access=access,
+        pages=[],
+        http_status=receipt.get("status", 200),
+        http_cache_status="VERIFIED_ORIGINAL_REUSED" if receipt.get("status") == 304 else "RETRIEVED",
+    )
     if source["collection_method"] == "json":
         obj = json.loads(raw)
-        if not isinstance(obj,dict) or not isinstance(obj.get("description"),dict):
-            raise ValueError("Official series JSON does not match the expected description/time-series contract.")
-        text = json.dumps(obj,ensure_ascii=False,sort_keys=True)
+        if not isinstance(obj, dict) or not isinstance(obj.get("description"), dict):
+            raise ValueError(
+                "Official series JSON does not match the expected description/time-series contract."
+            )
+        text = json.dumps(obj, ensure_ascii=False, sort_keys=True)
         description = obj["description"]
-        return [base | dict(url=canonical_url(url),title=description.get("title",source["name"]),text=text,
-            hash=digest(text),published_at=parse_date(description.get("releaseDate")),pages=[])]
+        return [
+            base
+            | dict(
+                url=canonical_url(url),
+                title=description.get("title", source["name"]),
+                text=text,
+                hash=digest(text),
+                published_at=parse_date(description.get("releaseDate")),
+                pages=[],
+            )
+        ]
     if source["collection_method"] == "rss":
         feed = feedparser.parse(raw)
         if not feed.entries:
@@ -157,11 +260,23 @@ def read_source(source, data_dir=None):
                 continue
             summary = re.sub(r"<[^>]*>", " ", entry.get("summary", ""))
             text = normalize(entry.get("title", "") + "\n" + summary)
-            if not re.search(r"office (?:scheme|space|building|development|market)|planning (?:approv|application)|City Plan 2040|pre-let|office-led", entry.get("title", ""), re.I):
+            if not re.search(
+                r"office (?:scheme|space|building|development|market)|planning (?:approv|application)|City Plan 2040|pre-let|office-led",
+                entry.get("title", ""),
+                re.I,
+            ):
                 continue
-            docs.append(base | dict(url=canonical_url(link), title=entry.get("title", source["name"]),
-                text=text, hash=digest(text), published_at=parse_date(entry.get("published")),
-                metadata_only=True))
+            docs.append(
+                base
+                | dict(
+                    url=canonical_url(link),
+                    title=entry.get("title", source["name"]),
+                    text=text,
+                    hash=digest(text),
+                    published_at=parse_date(entry.get("published")),
+                    metadata_only=True,
+                )
+            )
         return docs
     if is_pdf:
         pages = pdf_pages(path)
@@ -170,8 +285,14 @@ def read_source(source, data_dir=None):
         published = source.get("publication_date")
     else:
         html = raw.decode("utf-8", errors="replace")
-        extracted = trafilatura.bare_extraction(html, url=url, include_comments=False,
-                       include_tables=True, favor_precision=True, with_metadata=True)
+        extracted = trafilatura.bare_extraction(
+            html,
+            url=url,
+            include_comments=False,
+            include_tables=True,
+            favor_precision=True,
+            with_metadata=True,
+        )
         if not extracted:
             raise ValueError("Main article could not be reliably extracted.")
         obj = extracted.as_dict() if hasattr(extracted, "as_dict") else extracted
@@ -181,16 +302,28 @@ def read_source(source, data_dir=None):
         pages = []
     if len(normalize(text)) < 150:
         raise ValueError("Insufficient primary text for reliable evidence.")
-    return [base | dict(url=canonical_url(url), title=title, text=text,
-                       hash=digest(normalize(text)), published_at=parse_date(published), pages=pages)]
+    return [
+        base
+        | dict(
+            url=canonical_url(url),
+            title=title,
+            text=text,
+            hash=digest(normalize(text)),
+            published_at=parse_date(published),
+            pages=pages,
+        )
+    ]
 
 
 def publication_date(html, fallback=None):
     """Prefer explicit article metadata/header, never a related story's most recent date."""
     root = lxml_html.fromstring(html)
     # A union XPath returns document order, allowing unrelated global metadata to win.
-    for selector in ('//time[contains(@class,"content-header")]/@datetime',
-                     '//article//time/@datetime', '//meta[@property="article:published_time"]/@content'):
+    for selector in (
+        '//time[contains(@class,"content-header")]/@datetime',
+        "//article//time/@datetime",
+        '//meta[@property="article:published_time"]/@content',
+    ):
         for value in root.xpath(selector):
             if parse_date(value):
                 return value

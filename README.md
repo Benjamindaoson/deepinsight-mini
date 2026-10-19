@@ -19,7 +19,7 @@ $env:PLAYWRIGHT_SKIP_BROWSER_GC='1'
 
 On this workstation, the network tunnel uses benchmark DNS addresses. Start with `Start-Local.ps1 -TunnelDns`. This opt-in accepts only the two recognized benchmark DNS ranges for registered HTTPS hosts, keeps TLS verification enabled and still rejects loopback/private targets. Keep this mode off on ordinary networks and VPS deployments.
 
-The app reads process environment variables, not `.env` automatically. See `.env.example`. Model configuration uses `MINI_API_KEY`, `MINI_BASE_URL`, `MINI_MODEL`, with existing `LLM_*` variables as fallbacks. The current user authorization permits **official DeepSeek only**. No credentials are stored in source, SQLite or client JavaScript.
+The app reads process environment variables, not `.env` automatically. See `.env.example`. Model configuration uses `MINI_API_KEY`, `MINI_BASE_URL`, `MINI_MODEL`, with existing `LLM_*` variables as fallbacks. The user now authorizes **ToAPIs and official DeepSeek**. Add personal keys in `/settings#api-connection`, or use the encrypted workspace presets. Personal keys are Windows DPAPI encrypted under ignored `data/private/providers/`, never returned or stored in SQLite/client storage. Provider URLs are allowlisted, TLS verified, redirects disabled. Personal profiles and uploads are owner isolated; the research workspace itself remains shared.
 
 ## Current verified status
 
@@ -28,8 +28,8 @@ As of the 19 October 2026 acceptance run:
 - Actual collection succeeded for seven endpoints across Savills, City of London, Bank of England and ONS.
 - Current database contains 101 source-reported observations and the dashboard summarizes 21 metric/geography/definition series. These are extraction evidence, **not automatically approved quantitative conclusions**.
 - All eight assessment concerns have questions and source mapping. Seven contain numeric evidence; news/events are qualitative. Dedicated Canary Wharf and Midtown series, direct hybrid-working measures and wider broker coverage remain gaps.
-- A real official DeepSeek connection check returned **HTTP 402**. The server-side key is configured, but live model/tool-calling acceptance remains **BLOCKED**.
-- Six prescribed questions plus a follow-up were entered in a real browser. Source-search fallbacks are labeled deterministic; no successful AI result is claimed.
+- The replacement official DeepSeek key and ToAPIs GPT, Gemini and Claude each returned a real successful completion. Historical HTTP402 receipts remain historical; no blocked key is silently reused. See `docs/CONNECTED_CHAT_ACCEPTANCE.md`.
+- The earlier six-question batch was HTTP402-blocked. A new real browser flow saved a personal key, refreshed models, selected GPT thinking, uploaded text and completed actual domain/SQL tool calls plus an exact file quote. These runs are recorded separately.
 - A Windows scheduled task triggered a successful controlled morning monitor independently of the web UI. Default London schedules are 08:00 and 18:00.
 - A real SMTP exchange reached a loopback capture recipient once; the repeat was deduplicated. External email/Telegram delivery remains disabled and unverified.
 - HTML/email/PDF generation, PDF download/rendering, persistent conversations/settings and mobile containment were exercised.
@@ -44,9 +44,9 @@ See `docs/ACCEPTANCE.md` and `output/evidence/` for evidence and limitations. A 
 | Overview (`/overview`) | Inspect source-reported values, periods, submarkets, review states, source health and coverage |
 | Market Monitor (`/monitor`) | Run checks, inspect source health, snapshots, signal history and scheduler heartbeat |
 | Reports (`/reports`) | Reopen saved HTML briefings and download PDF/HTML |
-| Settings (`/settings`) | Focus areas, London-time schedules and opt-in delivery |
+| Settings (`/settings`) | API keys, models/thinking, focus, London schedules and opt-in delivery |
 
-Dashboard source-reported cards intentionally show pending observations for inspection. Following the user's request for visible data charts, three ONS API history charts show original CPI, employment and GDP values with source/period/pending-review labels and inspectable data points. Each raw chart requires one current official source/definition/unit and exact agreement between the plotted value and the retained original JSON evidence. They are separate from approved quantitative reports and approved market trend charts. Without two compatible reviewed observations, the approved market trend area says history is insufficient. Coverage bars describe evidence availability, not market performance.
+Dashboard source-reported cards intentionally show pending observations for inspection. Following the user's request for visible data charts, the interactive ECharts dashboard shows original CPI, employment, GDP and source-reported market snapshots with source/period/pending-review labels and inspectable data points. Each raw chart requires one current official source/definition/unit and exact agreement between the plotted value and the retained original JSON evidence. They are separate from approved quantitative reports and approved market trend charts. Without two compatible reviewed observations, the approved market trend area says history is insufficient. Coverage bars describe evidence availability, not market performance.
 
 ## Assessment coverage
 
@@ -113,3 +113,9 @@ External source text is untrusted data. Agent tools cannot approve facts or fetc
 ## Deployment and operations
 
 See `RUNBOOK.md` for Windows schedules, Linux systemd setup, secrets, backups, recovery, notification gates and troubleshooting. Windows shutdown stops local scheduled monitoring; continuous operation needs an online host. No VPS deployment or long-running service reliability claim is made.
+
+## Connected chat and BI delivery
+
+Read [current acceptance](docs/CONNECTED_CHAT_ACCEPTANCE.md). Chat input is 19px desktop / 16px mobile, with a real file plus button and model/thinking controls. Upload PDF/DOCX/UTF-8 text/CSV/JSON or PNG/JPEG, max8MiB/file and five files. Uploads never become approved observations. Text extraction is bounded at24,000 characters; scanned PDFs need prior OCR. Images require a vision-capable model. A connection check proves transport only; agent success separately requires actual tools and evidence validation.
+
+Dashboard filters reach `/api/dashboard/overview` and the read-only parameterized SQLite semantic layer. ECharts points and the accessible data tables open original evidence. Reviewed mode is default; View collected source figures explicitly enters pending inspection mode. Missing metrics remain Not Verified. Single-period source snapshots do not establish trends. Eight domain skills use one registry and optional stdio MCP adapter. PDF development is paused as requested.

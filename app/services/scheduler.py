@@ -27,7 +27,7 @@ def tick(store, at=None):
         if not claimed:
             continue
         try:
-            result = run_monitor(store, kind)
+            result = run_monitor(store, kind, force_analysis=store.setting('scheduled_ai_analysis', True))
             store.execute("UPDATE schedule_slots SET run_id=?,status=? WHERE slot=?", (result["id"], result["status"], slot))
             results.append(result)
         except Exception as exc:

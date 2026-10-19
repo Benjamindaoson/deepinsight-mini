@@ -15,7 +15,7 @@ dependencies = {file = "requirements.txt"}
 include = ["app*", "deepinsight*"]
 
 [tool.setuptools.package-data]
-app = ["templates/*.html", "static/*"]
+app = ["templates/*.html", "static/*", "static/vendor/*", "skills/*/SKILL.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

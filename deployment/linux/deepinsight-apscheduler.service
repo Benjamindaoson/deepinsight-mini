@@ -1,0 +1,17 @@
+[Unit]
+Description=DeepInsight Mini independent APScheduler London briefing worker
+After=network-online.target
+[Service]
+Type=simple
+User=deepinsight
+WorkingDirectory=/opt/deepinsight-mini
+EnvironmentFile=/etc/deepinsight-mini.env
+ExecStart=/opt/deepinsight-mini/.venv/bin/python -m app.monitoring.scheduler
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/deepinsight-mini/data /opt/deepinsight-mini/output
+[Install]
+WantedBy=multi-user.target

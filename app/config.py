@@ -1,8 +1,11 @@
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+_runtime = ContextVar('mini_model_runtime', default=None)
 os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(ROOT / ".browsers"))
 os.environ.setdefault("PLAYWRIGHT_SKIP_BROWSER_GC", "1")
 
@@ -19,9 +22,22 @@ class Config:
     daily_tokens: int = 180000
     max_rounds: int = 5
     max_seconds: int = 150
+    thinking: str = 'auto'
+    provider: str = 'deepseek'
+
+
+@contextmanager
+def runtime_scope(selected):
+    token = _runtime.set(selected)
+    try:
+        yield
+    finally:
+        _runtime.reset(token)
 
 
 def config():
+    if _runtime.get() is not None:
+        return _runtime.get()
     return Config(
         data=Path(os.getenv("MINI_DATA_DIR", ROOT / "data")),
         output=Path(os.getenv("MINI_OUTPUT_DIR", ROOT / "output")),

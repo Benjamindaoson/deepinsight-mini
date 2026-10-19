@@ -112,3 +112,11 @@ Never copy only the SQLite main file while WAL writers are active. Restore into 
 ## Business deck reproduction
 
 The authored source is `tools/build_business_deck.mjs`. It uses the bundled Artifact Tool runtime, screenshots captured by `tools/capture_final.py`, five editable slides and a separate validated output. Create a private `output/slide-build/node_modules` junction to the bundled Node package directory, copy the authoring script there, then run it with the bundled Node executable. Select a new final output filename for a revision; the finalizer will not overwrite a delivered deck. Validation receipts are in `output/slide-build/` and slide previews in `output/slides/`. Structural checks and rendered review do not claim native Microsoft PowerPoint testing.
+
+## Personal keys and connected models (19 October update)
+
+Open `/settings#api-connection` from the bottom-left gear or the chat model menu. Choose ToAPIs or official DeepSeek, paste a new key, save, refresh the catalog, choose a model/thinking mode and test. Replace key updates only your personal profile. Keys never return from GET APIs and never enter SQLite/browser storage. Credentials in `data/private/providers/*.sealed` are Windows DPAPI-encrypted for the running OS account; copy alone is not a portable credential backup. Preserve the original OS account/profile for recovery or re-enter keys after migration. Linux personal persistence fails closed; use environment credentials until a native secret-store adapter exists. Workspace preset keys are operator-managed. This PoC is not a multi-tenant service.
+
+A browser identity is retained in an HttpOnly signed cookie, independent of the12h authenticated session. Clearing cookies requires re-entering personal credentials; another browser does not inherit them. Uploaded files are private owner-bound server data. They are untrusted input and cannot approve market facts. Do not share private upload storage as a public static folder.
+
+Scheduled AI uses the selected workspace profile and daily budget, not an arbitrary visitor personal key. Default London times remain08:00/18:00. The Windows task is independent of the web process. External notifications stay off until a real recipient, transport and explicit sending opt-in/test exist. Inspect saved HTML/email reports and source health before enabling delivery.

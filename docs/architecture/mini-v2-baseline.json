@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "DeepInsight Mini · 已有运行架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 4,
+    "cellW": 230,
+    "cellH": 95,
+    "gapX": 75,
+    "gapY": 100
+  },
+  "components": [
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "业务界面",
+      "sublabel": "FastAPI / Jinja2",
+      "row": 0,
+      "col": 0
+    },
+    {
+      "id": "agent",
+      "type": "backend",
+      "label": "单 Agent",
+      "sublabel": "原生工具调用",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "id": "skills",
+      "type": "backend",
+      "label": "已有六个 Skills",
+      "sublabel": "检索 / 比较 / 监测 / 报告",
+      "row": 0,
+      "col": 2
+    },
+    {
+      "id": "model",
+      "type": "external",
+      "label": "DeepSeek API",
+      "sublabel": "实际可用性待重验",
+      "row": 0,
+      "col": 3
+    },
+    {
+      "id": "timer",
+      "type": "external",
+      "label": "系统定时任务",
+      "sublabel": "Windows / Linux",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "id": "monitor",
+      "type": "backend",
+      "label": "独立监测流程",
+      "sublabel": "持久时隙 / 去重",
+      "row": 1,
+      "col": 1
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "SQLite / FTS5",
+      "sublabel": "观察值 / 来源 / 审核记录",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "raw",
+      "type": "security",
+      "label": "原件与审核门禁",
+      "sublabel": "原文 / SHA-256 / 状态",
+      "row": 1,
+      "col": 3
+    },
+    {
+      "id": "sources",
+      "type": "external",
+      "label": "公开机构来源",
+      "sublabel": "机构研究与官方 API",
+      "row": 2,
+      "col": 0
+    },
+    {
+      "id": "collector",
+      "type": "backend",
+      "label": "受限采集器",
+      "sublabel": "HTTPS / HTML / PDF / API",
+      "row": 2,
+      "col": 1
+    },
+    {
+      "id": "reports",
+      "type": "backend",
+      "label": "结构化简报",
+      "sublabel": "HTML / PDF / Email",
+      "row": 2,
+      "col": 2
+    },
+    {
+      "id": "delivery",
+      "type": "external",
+      "label": "通知通道",
+      "sublabel": "SMTP / Apprise · 默认关闭",
+      "row": 2,
+      "col": 3
+    }
+  ],
+  "connections": [
+    {
+      "from": "web",
+      "to": "agent"
+    },
+    {
+      "from": "agent",
+      "to": "skills"
+    },
+    {
+      "from": "skills",
+      "to": "model",
+      "variant": "dashed"
+    },
+    {
+      "from": "skills",
+      "to": "db"
+    },
+    {
+      "from": "timer",
+      "to": "monitor"
+    },
+    {
+      "from": "monitor",
+      "to": "db"
+    },
+    {
+      "from": "db",
+      "to": "raw",
+      "variant": "security"
+    },
+    {
+      "from": "sources",
+      "to": "collector"
+    },
+    {
+      "from": "collector",
+      "to": "reports"
+    },
+    {
+      "from": "reports",
+      "to": "delivery"
+    },
+    {
+      "from": "monitor",
+      "to": "collector"
+    },
+    {
+      "from": "db",
+      "to": "reports"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "slate",
+      "title": "本地源码依据 · 当前实现，不含拟开发能力",
+      "items": [
+        "业务界面: app/main.py:69",
+        "单 Agent: app/agent.py:190",
+        "已有六个 Skills: app/agent.py:89",
+        "DeepSeek API: app/agent.py:55",
+        "系统定时任务: deployment/windows/Install-Schedule.ps1",
+        "独立监测流程: app/services/scheduler.py:19"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "独立监测与交付依据",
+      "items": [
+        "SQLite / FTS5: app/database.py:19",
+        "原件与审核门禁: app/skills/monitor.py:63",
+        "公开机构来源: config/sources.yaml",
+        "受限采集器: app/skills/source_reader.py:117",
+        "结构化简报: app/skills/report.py:58",
+        "通知通道: app/services/notifications.py"
+      ]
+    }
+  ]
+}

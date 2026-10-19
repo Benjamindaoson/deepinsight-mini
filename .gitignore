@@ -12,3 +12,4 @@ output/
 node_modules/
 .browsers/
 *.log
+.cache/

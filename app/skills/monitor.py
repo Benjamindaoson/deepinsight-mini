@@ -128,7 +128,7 @@ def create_metric_signals(store, run_id):
     return count
 
 
-def run_monitor(store, trigger="once", *, sources=None, reader=None, generate=True):
+def run_monitor(store, trigger="once", *, sources=None, reader=None, generate=True, force_analysis=False):
     reader = reader or (lambda source: read_source(source, store.path.parent))
     sources = [s for s in (sources if sources is not None else registry()) if s.get("enabled", True)]
     with monitor_lock(store):
@@ -187,14 +187,16 @@ def run_monitor(store, trigger="once", *, sources=None, reader=None, generate=Tr
                 from app.skills.report import make_report
                 from app.services.notifications import dispatch
                 analysis_id = None
-                if not baseline and (events or signals):
-                    if store.setting("model_block"):
-                        store.audit("AI_ANALYSIS_SKIPPED", ident, {"reason": "Official provider is blocked; evidence retained."})
-                    else:
-                        from app.agent import ask
-                        store.execute("UPDATE monitor_runs SET phase='Generating evidence-constrained analysis' WHERE id=?", (ident,))
-                        analysis = ask(store, "Analyze newly discovered London office evidence from the latest monitor. Read sources and distinguish facts, interpretations and missing coverage. Do not run another monitor. Do not publish pending numbers.")
-                        analysis_id = analysis["agent_run_id"]
+                if force_analysis or (not baseline and (events or signals)):
+                    from app.agent import ask
+                    from app.providers import ProviderVault
+                    from app.config import runtime_scope
+                    store.execute("UPDATE monitor_runs SET phase='Generating evidence-constrained analysis' WHERE id=?", (ident,))
+                    vault = ProviderVault(store.path.parent)
+                    selected = vault.runtime('workspace')
+                    with runtime_scope(selected):
+                        analysis = ask(store, "Analyze retained London office evidence and the latest monitor status. Read sources and distinguish facts, interpretations and missing coverage. Source updates are not proof of market changes. Do not run another monitor. Do not publish pending numbers.")
+                    analysis_id = analysis["agent_run_id"]
                 report = make_report(store, ident, agent_run_id=analysis_id)
                 deliveries = dispatch(store, report["id"])
                 store.execute("UPDATE monitor_runs SET report_id=?,notification_status=? WHERE id=?",

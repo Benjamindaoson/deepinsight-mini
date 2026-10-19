@@ -114,10 +114,10 @@ def make_report(store, run_id=None, *, report_type=None, agent_run_id=None):
         methodology="Deterministic body fingerprints, URL/content/event deduplication, original publication dates and separate discovery timestamps. Numeric comparisons require explicit human approval, same publisher, geography, definition, units and period frequency. Planning approval is not completed supply.",
         limitations=["A small public-source PoC, not comprehensive market coverage.",
             "Source verification does not approve numeric interpretation. No approved comparable history means no trend chart.",
-            "AI analysis is unavailable while the official provider is blocked. This briefing uses deterministic evidence summaries.",
+            "AI material is included only after a successful real model run and evidence validation. Model interpretations still require analyst review.",
             "Discovery dates do not establish when a market event occurred. Baseline documents are not new market changes.",
             "No investment recommendation or measured financial return is claimed."],
-        pending_count=pending, ai_status="BLOCKED" if store.setting("model_block") else "NOT_REQUESTED",
+        pending_count=pending, ai_status="NOT_REQUESTED",
         agent_analysis=None)
     if agent_run_id:
         agent_run = store.one("SELECT * FROM agent_runs WHERE id=?", (agent_run_id,))

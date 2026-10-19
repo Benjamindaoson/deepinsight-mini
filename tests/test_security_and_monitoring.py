@@ -33,7 +33,7 @@ def test_process_lock_rejects_overlapping_monitor(tmp_path):
 def test_schedule_slot_claim_is_durable(tmp_path,monkeypatch):
     store=Store(tmp_path/"db.sqlite")
     calls=[]
-    def run(s,trigger):
+    def run(s,trigger,*,force_analysis=False):
         calls.append(trigger)
         return {"id":"isolated-test-only", "status":"SUCCESS"}
     monkeypatch.setattr("app.skills.monitor.run_monitor",run)
