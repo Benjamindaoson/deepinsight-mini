@@ -11,8 +11,9 @@ def get_monitor_status(store, args):
 
 
 def get_verified_changes(store, args):
-    store.invalidate()
-    rows = store.query("SELECT * FROM signals WHERE status='ACTIVE' ORDER BY created_at DESC LIMIT 50")
+    from app.analytics.publication import verified_metric_signals
+
+    rows = verified_metric_signals(store)[:50]
     return dict(
         signals=rows, evidence_ids=list(dict.fromkeys(r["document_id"] for r in rows if r.get("document_id")))
     )

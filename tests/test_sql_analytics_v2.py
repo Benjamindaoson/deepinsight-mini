@@ -41,6 +41,110 @@ def test_sql_lag_computes_only_compatible_consecutive_quarters(market):
     assert c["comparison_status"] == "MISSING_PERIOD" and c["absolute_change"] is None
 
 
+def test_signal_generation_uses_hash_checked_consecutive_sql_pairs(market):
+    from pathlib import Path
+    from app.skills.monitor import create_metric_signals
+    from app.skills.continuous_monitoring import get_verified_changes
+
+    store, add = market
+    add("a", "2026Q1", 6.8)
+    add("b", "2026Q2", 6.7)
+    add("gap", "2026Q4", 6.1)
+    assert create_metric_signals(store, "isolated-test") == 1
+    assert len(get_verified_changes(store, None)["signals"]) == 1
+    path = store.one("SELECT raw_path FROM documents WHERE id='a'")["raw_path"]
+    Path(path).write_bytes(b"tampered original")
+    assert get_verified_changes(store, None)["signals"] == []
+    assert store.one("SELECT status FROM signals WHERE kind='METRIC_CHANGE'")["status"] == "INVALIDATED"
+
+
+def test_source_discovery_signal_is_not_a_verified_market_change(market):
+    from app.skills.continuous_monitoring import get_verified_changes
+
+    store, add = market
+    add("a", "2026Q1", 6.8)
+    store.execute(
+        "INSERT INTO signals(id,document_id,kind,status) VALUES ('source','a','SOURCE_UPDATE','ACTIVE')"
+    )
+    assert get_verified_changes(store, None)["signals"] == []
+
+
+def test_report_cards_charts_and_delivery_withdraw_tampered_original(market, tmp_path, monkeypatch):
+    from pathlib import Path
+    from app.skills.report import make_report, evidence_warning
+    from app.services.notifications import dispatch
+
+    store, add = market
+    monkeypatch.setenv("MINI_OUTPUT_DIR", str(tmp_path / "out"))
+    add("a", "2026Q1", 6.8)
+    add("b", "2026Q2", 6.7)
+    report = make_report(store)
+    assert len(report["data"]["charts"]) == 1
+    path = store.one("SELECT raw_path FROM documents WHERE id='b'")["raw_path"]
+    Path(path).write_bytes(b"tampered original")
+    assert evidence_warning(store, report["data"])
+    store.set_setting("notification_mode", "spool")
+    assert dispatch(store, report["id"])[0]["status"] == "WITHHELD_EVIDENCE_CHANGED"
+    refreshed = make_report(store)
+    assert refreshed["data"]["charts"] == []
+    vacancy = next(c for c in refreshed["data"]["indicator_cards"] if c["name"] == "Vacancy")
+    assert vacancy["observation"]["id"] == "a"
+
+
+def test_legacy_compare_tool_cannot_bypass_period_or_original_gate(market):
+    from pathlib import Path
+    from app.agent import execute_tool
+
+    store, add = market
+    add("a", "2026Q1", 6.8)
+    add("c", "2026Q3", 6.1)
+    assert execute_tool(store, "compare", dict(old_id="a", new_id="c"))["status"] == "NOT_COMPARABLE"
+    add("b", "2026Q2", 6.7)
+    assert execute_tool(store, "compare", dict(old_id="a", new_id="b"))["status"] == "COMPARABLE"
+    Path(store.one("SELECT raw_path FROM documents WHERE id='a'")["raw_path"]).write_bytes(b"tampered")
+    assert execute_tool(store, "compare", dict(old_id="a", new_id="b"))["status"] == "NOT_COMPARABLE"
+
+
+def test_claim_and_unlisted_report_observation_check_original_hash(market):
+    from pathlib import Path
+    from app.agent import validate_answer
+    from app.skills.report import evidence_warning
+
+    store, add = market
+    add("a", "2026Q1", 6.8)
+    quote = "A source-backed qualitative observation."
+    # Retain a valid synthetic original before testing its withdrawal.
+    doc = store.one("SELECT * FROM documents WHERE id='a'")
+    store.execute("UPDATE documents SET text=text||? WHERE id='a'", (quote,))
+    Path(doc["raw_path"]).write_text(doc["text"] + quote)
+    store.execute(
+        "UPDATE documents SET raw_hash=? WHERE id='a'",
+        (hashlib.sha256(Path(doc["raw_path"]).read_bytes()).hexdigest(),),
+    )
+    draft = dict(summary="draft", claims=[dict(text=quote, quote=quote, document_id="a", kind="fact")])
+    assert validate_answer(store, draft)["claims"]
+    report = dict(sources=[], indicator_cards=[dict(observation=dict(id="a"))])
+    assert not evidence_warning(store, report)
+    Path(doc["raw_path"]).write_bytes(b"tampered")
+    assert validate_answer(store, draft)["claims"] == []
+    assert evidence_warning(store, report)
+
+
+def test_publication_bounds_keep_latest_series_and_do_not_revoke_older_valid_signals(market):
+    from app.analytics.publication import approved_observations, verified_metric_signals
+
+    store, add = market
+    for index in range(241):
+        add(str(index), f"{2000 + index // 12}M{index % 12 + 1:02}", 6 + index / 100)
+    rows = approved_observations(store)
+    assert len(rows) == 24
+    assert max(row["period"] for row in rows) == "2020M01"
+    store.execute(
+        "INSERT INTO signals(id,document_id,observation_id,previous_observation_id,kind,status) VALUES ('old-signal','1','1','0','METRIC_CHANGE','ACTIVE')"
+    )
+    assert len(verified_metric_signals(store, rows)) == 1
+
+
 def test_pending_definitions_regions_and_sources_never_blend(market):
     from app.analytics.engine import Analytics, QuerySpec
 

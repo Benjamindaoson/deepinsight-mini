@@ -14,9 +14,20 @@ from app.database import now, uid
 
 
 def transport_fingerprint(channel, recipient):
-    names = {"email": ["MINI_SMTP_HOST", "MINI_SMTP_PORT", "MINI_SMTP_FROM", "MINI_SMTP_USER", "MINI_SMTP_PASSWORD"],
-             "telegram": ["MINI_TELEGRAM_TOKEN", "MINI_TELEGRAM_CHAT_ID"], "apprise": ["MINI_APPRISE_URL"]}.get(channel, [])
-    return hashlib.sha256(json.dumps([channel, recipient, [os.getenv(n, "") for n in names]], sort_keys=True).encode()).hexdigest()
+    names = {
+        "email": [
+            "MINI_SMTP_HOST",
+            "MINI_SMTP_PORT",
+            "MINI_SMTP_FROM",
+            "MINI_SMTP_USER",
+            "MINI_SMTP_PASSWORD",
+        ],
+        "telegram": ["MINI_TELEGRAM_TOKEN", "MINI_TELEGRAM_CHAT_ID"],
+        "apprise": ["MINI_APPRISE_URL"],
+    }.get(channel, [])
+    return hashlib.sha256(
+        json.dumps([channel, recipient, [os.getenv(n, "") for n in names]], sort_keys=True).encode()
+    ).hexdigest()
 
 
 def email_message(report, html, recipient):
@@ -26,7 +37,9 @@ def email_message(report, html, recipient):
     msg["Subject"] = "London Office Intelligence | " + report["type"].replace("_", " ").title()
     fingerprint = hashlib.sha256((report["id"] + recipient).encode()).hexdigest()[:32]
     msg["Message-ID"] = f"<{fingerprint}@london-office-intelligence.local>"
-    msg.set_content("Your evidence-based market briefing is available. Open the HTML version for source links.")
+    msg.set_content(
+        "Your evidence-based market briefing is available. Open the HTML version for source links."
+    )
     msg.add_alternative(html, subtype="html")
     return msg
 
@@ -57,6 +70,10 @@ def dispatch(store, report_id, *, test=False, isolated_smtp=False):
     mode = store.setting("notification_mode", "disabled")
     if mode == "disabled" and not isolated_smtp:
         return [{"channel": "external", "status": "DISABLED"}]
+    from app.skills.report import evidence_warning
+
+    if evidence_warning(store, json.loads(report["data"])):
+        return [{"channel": "external", "status": "WITHHELD_EVIDENCE_CHANGED"}]
     channels = []
     if mode == "spool" or isolated_smtp:
         channels.append(("smtp_test" if isolated_smtp else "spool", "capture@localhost"))
@@ -81,16 +98,26 @@ def dispatch(store, report_id, *, test=False, isolated_smtp=False):
         # Test sends use their own identity and can never mark a production report as delivered.
         identity = report_id + ("/test/" + fingerprint[:12] if test else "")
         ident = uid()
-        claimed = store.execute("INSERT OR IGNORE INTO notifications VALUES (?,?,?,?,?,?,?,?,?)",
-            (ident, identity, channel, recipient, "SENDING", 1, "", "", now()))
+        claimed = store.execute(
+            "INSERT OR IGNORE INTO notifications VALUES (?,?,?,?,?,?,?,?,?)",
+            (ident, identity, channel, recipient, "SENDING", 1, "", "", now()),
+        )
         if not claimed:
-            old = store.one("SELECT * FROM notifications WHERE report_id=? AND channel=? AND recipient=?", (identity, channel, recipient))
+            old = store.one(
+                "SELECT * FROM notifications WHERE report_id=? AND channel=? AND recipient=?",
+                (identity, channel, recipient),
+            )
             if old["status"] not in {"FAILED_RETRYABLE"} or old["attempt"] >= 3:
-                results.append({"channel": channel, "status": "DEDUPLICATED", "previous_status": old["status"]})
+                results.append(
+                    {"channel": channel, "status": "DEDUPLICATED", "previous_status": old["status"]}
+                )
                 continue
             ident = old["id"]
             with store.connection() as conn:
-                updated = conn.execute("UPDATE notifications SET status='SENDING',attempt=attempt+1 WHERE id=? AND status='FAILED_RETRYABLE'", (ident,)).rowcount
+                updated = conn.execute(
+                    "UPDATE notifications SET status='SENDING',attempt=attempt+1 WHERE id=? AND status='FAILED_RETRYABLE'",
+                    (ident,),
+                ).rowcount
             if not updated:
                 results.append({"channel": channel, "status": "DEDUPLICATED"})
                 continue
@@ -110,8 +137,17 @@ def dispatch(store, report_id, *, test=False, isolated_smtp=False):
                     raise ValueError("Telegram credentials are missing.")
                 data = json.loads(report["data"])
                 url = os.getenv("MINI_PUBLIC_URL", "http://127.0.0.1:8766") + "/reports/" + report_id
-                r = httpx.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=15,
-                    json={"chat_id": chat, "text": "London Office Intelligence\n" + "\n".join(data["executive_summary"][:2]) + "\n" + url})
+                r = httpx.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    timeout=15,
+                    json={
+                        "chat_id": chat,
+                        "text": "London Office Intelligence\n"
+                        + "\n".join(data["executive_summary"][:2])
+                        + "\n"
+                        + url,
+                    },
+                )
                 if r.status_code != 200 or not r.json().get("ok"):
                     raise ValueError("Telegram provider rejected message.")
                 response, status = "Telegram provider accepted message", "ACCEPTED"
@@ -124,16 +160,26 @@ def dispatch(store, report_id, *, test=False, isolated_smtp=False):
                 if not client.notify(title="London Office Intelligence", body="A new briefing is available."):
                     raise ValueError("Notification provider did not confirm acceptance.")
                 response, status = "Apprise accepted message", "ACCEPTED"
-            store.execute("UPDATE notifications SET status=?,response=?,message_id=?,updated_at=? WHERE id=?",
-                          (status, response, str(message["Message-ID"]), now(), ident))
+            store.execute(
+                "UPDATE notifications SET status=?,response=?,message_id=?,updated_at=? WHERE id=?",
+                (status, response, str(message["Message-ID"]), now(), ident),
+            )
             if test and status == "ACCEPTED":
-                store.set_setting("channel_test_" + channel, {"fingerprint": fingerprint, "status": status, "at": now()})
+                store.set_setting(
+                    "channel_test_" + channel, {"fingerprint": fingerprint, "status": status, "at": now()}
+                )
             results.append({"channel": channel, "status": status})
         except (ConnectionError, ConnectionRefusedError) as exc:
-            store.execute("UPDATE notifications SET status='FAILED_RETRYABLE',response=?,updated_at=? WHERE id=?", (type(exc).__name__, now(), ident))
+            store.execute(
+                "UPDATE notifications SET status='FAILED_RETRYABLE',response=?,updated_at=? WHERE id=?",
+                (type(exc).__name__, now(), ident),
+            )
             results.append({"channel": channel, "status": "FAILED_RETRYABLE"})
         except Exception as exc:
             # Ambiguous network failures are not blindly retried: accepted-but-unacknowledged sends may duplicate.
-            store.execute("UPDATE notifications SET status='FAILED_REVIEW_REQUIRED',response=?,updated_at=? WHERE id=?", (type(exc).__name__, now(), ident))
+            store.execute(
+                "UPDATE notifications SET status='FAILED_REVIEW_REQUIRED',response=?,updated_at=? WHERE id=?",
+                (type(exc).__name__, now(), ident),
+            )
             results.append({"channel": channel, "status": "FAILED_REVIEW_REQUIRED"})
     return results

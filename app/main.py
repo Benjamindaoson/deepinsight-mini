@@ -78,7 +78,7 @@ def create_app(store=None):
     store = store or Store()
     web = FastAPI(title="London Office Intelligence", docs_url=None, redoc_url=None)
     web.state.store = store
-    web.state.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="mini")
+    web.state.executor = ThreadPoolExecutor(max_workers=max(1,min(2,int(os.getenv('MINI_MAX_JOBS','2')))), thread_name_prefix="mini")
     web.state.jobs = {}
     vault = ProviderVault(store.path.parent)
     uploads = AttachmentStore(store.path.parent)
@@ -193,6 +193,11 @@ def create_app(store=None):
     @web.get("/health")
     def health():
         return {"status": "ok", "product": "London Office Intelligence", "scheduler": "independent"}
+
+    @web.get('/api/runtime/resources')
+    def runtime_resources():
+        from app.railway_runtime import resource_metrics
+        return resource_metrics()
 
     @web.get("/login", response_class=HTMLResponse)
     def login():

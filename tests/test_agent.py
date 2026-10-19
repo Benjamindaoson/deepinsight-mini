@@ -23,10 +23,29 @@ def test_agent_cannot_approve_or_fetch_arbitrary_url(tmp_path):
 def test_claim_quote_must_match_and_numbers_require_approval(tmp_path):
     s = Store(tmp_path / "db.sqlite")
     s.execute("INSERT INTO sources(id,status) VALUES ('s','HEALTHY')")
-    s.execute("INSERT INTO documents(id,source_id,text,status) VALUES ('d','s','A new office was approved.','SOURCE_VERIFIED')")
-    good = {"summary": "A planning update is available.", "claims": [{"text": "A new office was approved.",
-            "document_id": "d", "quote": "A new office was approved.", "kind": "fact"}],
-            "limitations": ["No approved quantitative observations."]}
+    s.execute(
+        "INSERT INTO documents(id,source_id,text,status) VALUES ('d','s','A new office was approved.','SOURCE_VERIFIED')"
+    )
+    import hashlib
+
+    original = tmp_path / "original.txt"
+    original.write_text("A new office was approved.")
+    s.execute(
+        "UPDATE documents SET raw_path=?,raw_hash=? WHERE id='d'",
+        (str(original), hashlib.sha256(original.read_bytes()).hexdigest()),
+    )
+    good = {
+        "summary": "A planning update is available.",
+        "claims": [
+            {
+                "text": "A new office was approved.",
+                "document_id": "d",
+                "quote": "A new office was approved.",
+                "kind": "fact",
+            }
+        ],
+        "limitations": ["No approved quantitative observations."],
+    }
     assert validate_answer(s, good)["claims"]
     bad = good | {"claims": [good["claims"][0] | {"text": "Rent rose 12%."}]}
     assert not validate_answer(s, bad)["claims"]
@@ -39,6 +58,7 @@ def test_blocked_model_retains_conversation_and_no_fake_ai(tmp_path):
     s.set_setting("model_block", {"reason": "Provider HTTP 402", "fingerprint": "test"})
     # Explicitly absent credential tests the fail-closed path without network.
     import os
+
     previous = os.environ.get("MINI_API_KEY")
     os.environ["MINI_API_KEY"] = ""
     try:

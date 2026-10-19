@@ -51,6 +51,34 @@ def test_tool_mutations_and_unknown_parameters_are_rejected(tmp_path):
     assert store.one("SELECT count(*) n FROM monitor_runs")["n"] == 0
 
 
+def test_document_and_metric_skills_execute_with_a_retained_original(tmp_path):
+    import hashlib
+    from app.tools.registry import execute
+
+    store = Store(tmp_path / "db.sqlite3")
+    # Synthetic extraction fixture, not a statement about actual market rent.
+    text = "SYNTHETIC: the City prime rent stood at £125 per sq ft."
+    original = tmp_path / "original.txt"
+    original.write_text(text, encoding="utf-8")
+    store.execute(
+        "INSERT INTO sources(id,status,config) VALUES ('s','HEALTHY',?)",
+        (json.dumps(dict(id="savills_q2_2026")),),
+    )
+    store.execute(
+        "INSERT INTO documents(id,source_id,text,raw_path,raw_hash,status,publisher) VALUES ('d','s',?,?,?,'SOURCE_VERIFIED','SYNTHETIC')",
+        (text, str(original), hashlib.sha256(original.read_bytes()).hexdigest()),
+    )
+    read = execute(store, "read_market_document", dict(document_id="d"))
+    assert read.status == "SUCCESS" and read.data["text"] == text
+    extracted = execute(
+        store, "extract_market_metrics", dict(document_id="d"), permissions={"read", "collect"}
+    )
+    assert extracted.status == "SUCCESS" and extracted.data["candidates"] == 1
+    observation = store.one("SELECT * FROM observations")
+    assert observation["review_status"] == "PENDING_REVIEW"
+    assert observation["unit"] == "GBP/sq ft"
+
+
 def test_stdio_mcp_list_and_call_use_same_registry_without_model(tmp_path):
     import os
 

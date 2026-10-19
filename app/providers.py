@@ -5,7 +5,6 @@ by the OS account running this app. Linux deployments use environment keys;
 personal persistence fails closed until an OS secret-store adapter is provided.
 """
 import base64
-import ctypes
 import hashlib
 import json
 import os
@@ -19,6 +18,7 @@ import httpx
 
 from app.config import config
 from app.database import now, uid
+from app.secrets import protect
 
 PROVIDERS = {
     'toapis': {'label': 'ToAPIs', 'base_url': 'https://toapis.cn/v1'},
@@ -28,20 +28,7 @@ _lock = threading.RLock()
 
 
 def seal(raw, decrypt=False):
-    if os.name != 'nt':
-        raise ValueError('Personal key persistence requires the Windows encrypted secret store on this deployment. Environment credentials remain available.')
-    class Blob(ctypes.Structure):
-        _fields_ = [('size', ctypes.c_ulong), ('data', ctypes.POINTER(ctypes.c_char))]
-    buffer = ctypes.create_string_buffer(raw)
-    source = Blob(len(raw), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_char)))
-    output = Blob()
-    function = ctypes.windll.crypt32.CryptUnprotectData if decrypt else ctypes.windll.crypt32.CryptProtectData
-    if not function(ctypes.byref(source), None, None, None, None, 1, ctypes.byref(output)):
-        raise ValueError('The encrypted secret store could not be opened for this OS account.')
-    try:
-        return ctypes.string_at(output.data, output.size)
-    finally:
-        ctypes.windll.kernel32.LocalFree(output.data)
+    return protect(raw, decrypt=decrypt)
 
 
 def capabilities(model):
@@ -80,6 +67,8 @@ class ProviderVault:
     def __init__(self, root):
         self.root = Path(root) / 'private' / 'providers'
         self.root.mkdir(parents=True, exist_ok=True)
+        if os.name != 'nt':
+            self.root.chmod(0o700)
 
     def path(self, owner):
         return self.root / (hashlib.sha256(owner.encode()).hexdigest() + '.sealed')
@@ -92,6 +81,8 @@ class ProviderVault:
         path = self.path(owner)
         temporary = path.with_suffix('.' + uid() + '.tmp')
         temporary.write_bytes(base64.b64encode(seal(json.dumps(data).encode())))
+        if os.name != 'nt':
+            temporary.chmod(0o600)
         os.replace(temporary, path)
 
     def save(self, owner, data):

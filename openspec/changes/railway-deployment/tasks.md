@@ -1,0 +1,7 @@
+- [x] Identify Mini source, inspect runtime and back up working source plus consistent SQLite.
+- [ ] Authenticate official Railway CLI with the user's existing account.
+- [ ] Implement/test Linux vault, secure workspace bootstrap and persistent supervisor.
+- [ ] Prepare and secret-scan curated source archive and public seed.
+- [ ] Create dedicated project/service/volume, configure secure variables and deploy.
+- [ ] Generate public domain; run real browser/API/model/monitor/report/fault checks.
+- [ ] Restart, verify persistence and measure memory/volume/plan; freeze release receipt.

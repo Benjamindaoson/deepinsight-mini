@@ -205,8 +205,10 @@ class Analytics:
         finally:
             conn.close()
 
-    def query(self, spec):
+    def query(self, spec, *, publication=False, observation_ids=None):
         spec = QuerySpec.model_validate(spec) if not isinstance(spec, QuerySpec) else spec
+        if observation_ids is not None and not 1 <= len(observation_ids) <= 20:
+            raise ValueError("Internal observation lookup must contain 1..20 identities")
         clauses = ["1=1"]
         params = []
         if spec.review_status != "ALL":
@@ -271,6 +273,11 @@ class Analytics:
             ]
             filters = []
             filter_params = []
+            if observation_ids:
+                filters.append("id IN (" + ",".join("?" for _ in observation_ids) + ")")
+                filter_params.extend(observation_ids)
+            if publication:
+                filters.append("latest_rank<=24")
             if spec.start_period:
                 filters.append("period_end(period)>=?")
                 filter_params.append(period_bounds(spec.start_period)[0])
@@ -326,8 +333,16 @@ class Analytics:
                         SELECT * FROM selected WHERE scope_rank=1 ORDER BY metric,geography,definition LIMIT ?"""
                     )
                 else:
-                    sql = cte + tail + " ORDER BY metric,geography,definition,period LIMIT ?"
-            rows = [dict(r) for r in conn.execute(sql, params + filter_params + [spec.limit])]
+                    order = (
+                        "period DESC,metric,geography,definition"
+                        if publication
+                        else "metric,geography,definition,period"
+                    )
+                    sql = cte + tail + " ORDER BY " + order + " LIMIT ?"
+            rows = [
+                dict(r)
+                for r in conn.execute(sql, params + filter_params + [10000 if publication else spec.limit])
+            ]
         for row in rows:
             row.pop("raw_path", None)
             row.pop("raw_hash", None)

@@ -1,0 +1,16 @@
+.git/
+.venv/
+.cache/
+.codex/
+.codegraph/
+.pytest_cache/
+.ruff_cache/
+.browsers/
+.env
+.env.*
+data/
+output/
+node_modules/
+**/__pycache__/
+**/*.pyc
+**/*.log

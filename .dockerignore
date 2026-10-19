@@ -1,0 +1,15 @@
+**
+!Dockerfile
+!app/
+!app/**
+!deepinsight/
+!deepinsight/**
+!config/
+!config/**
+!deployment/
+!deployment/requirements-runtime.txt
+!deployment/seed/
+!deployment/seed/**
+**/__pycache__/
+**/*.pyc
+**/.env*
