@@ -44,3 +44,8 @@ def test_canonical_and_normalized_content():
 def test_publication_date_uses_article_header_not_related_story_date():
     html = '<time class="sv-content-header__date" datetime="2026-08-06">06 August 2026</time><aside>01 October 2026</aside>'
     assert publication_date(html, "2026-10-01") == "2026-08-06"
+
+
+def test_article_time_precedes_invalid_global_publication_metadata():
+    html='<meta property="article:published_time" content="2017-24-7"><time class="sv-content-header__date" datetime="2026-08-06">06 August 2026</time>'
+    assert publication_date(html,'2026-08-06')=='2026-08-06'

@@ -11,7 +11,7 @@ s=Store()
 d=dashboard(s)
 browser=json.loads((ROOT/'output/evidence/browser/acceptance.json').read_text(encoding='utf-8'))
 report=s.one('SELECT * FROM reports ORDER BY created_at DESC LIMIT 1')
-deck=ROOT/'output/slides/London_Office_Intelligence_Business_Demo_v2.pptx'
+deck=ROOT/'output/slides/London_Office_Intelligence_Business_Demo_v3.pptx'
 items=[deck,Path(report['html_path']),ROOT/'requirements.lock',ROOT/'config/sources.yaml',ROOT/'output/evidence/browser/acceptance.json']
 if report.get('pdf_path'):
     items.append(Path(report['pdf_path']))
@@ -27,7 +27,7 @@ receipt={
  'browser':{'engineering':browser['engineering_browser_status'],'checks':len(browser['checks']),
             'six_questions':[{'question':q['input'],'status':q['status'],'actual_skill_calls':q['skill_calls']} for q in browser['questions']],
             'console_errors':browser['console_errors']},
- 'verification':{'pytest':'43 passed, 1 upstream deprecation warning','ruff':'PASS','compileall':'PASS','pip_check':'PASS'},
+ 'verification':{'pytest':'45 passed, 1 upstream deprecation warning','ruff':'PASS','compileall':'PASS','pip_check':'PASS'},
  'readiness':{'engineering':'PASS_LOCAL_POC','real_ai':'BLOCKED_HTTP402','data_reliability':'PARTIAL',
               'monitoring':'PASS_CONTROLLED_SCHEDULE','report_quality':'PASS_RENDERED',
               'notification_delivery':'PASS_ISOLATED_SMTP_ONLY / EXTERNAL_BLOCKED','business_poc':'PARTIAL'},

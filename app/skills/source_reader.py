@@ -188,8 +188,11 @@ def read_source(source, data_dir=None):
 def publication_date(html, fallback=None):
     """Prefer explicit article metadata/header, never a related story's most recent date."""
     root = lxml_html.fromstring(html)
-    values = root.xpath('//meta[@property="article:published_time"]/@content | //time[contains(@class,"content-header")]/@datetime | //article//time/@datetime')
-    if values:
-        return values[0]
+    # A union XPath returns document order, allowing unrelated global metadata to win.
+    for selector in ('//time[contains(@class,"content-header")]/@datetime',
+                     '//article//time/@datetime', '//meta[@property="article:published_time"]/@content'):
+        for value in root.xpath(selector):
+            if parse_date(value):
+                return value
     match = re.search(r'"datePublished"\s*:\s*"([^"]+)"', html)
-    return match.group(1) if match else fallback
+    return match.group(1) if match and parse_date(match.group(1)) else fallback

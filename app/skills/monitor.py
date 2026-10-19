@@ -156,7 +156,8 @@ def run_monitor(store, trigger="once", *, sources=None, reader=None, generate=Tr
                             # Entity+type+publication identity supplements canonical URL and body dedupe.
                             entity = digest(normalize(doc["title"].lower()) + kind + str(doc.get("published_at")))
                             event_id = uid()
-                            added = store.execute("INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?,?,?,?,?)",
+                            same_document_event = store.one("SELECT id FROM events WHERE document_id=? AND event_type=? AND status='SOURCE_VERIFIED'", (doc_id,kind))
+                            added = 0 if same_document_event else store.execute("INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?,?,?,?,?)",
                                 (event_id, doc_id, doc["title"], kind, doc.get("geography", ""),
                                  doc.get("published_at"), now(), doc["text"][:500], entity, "SOURCE_VERIFIED"))
                             events += added

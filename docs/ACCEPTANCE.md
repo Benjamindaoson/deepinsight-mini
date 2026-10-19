@@ -6,7 +6,7 @@ Client date: **19 October 2026**. Timestamps in stored receipts and SQLite are o
 
 | Area | Result | Evidence boundary |
 |---|---|---|
-| Engineering Readiness | PASS for the tested local PoC | 43 tests; Ruff, compileall and dependency checks; actual browser run |
+| Engineering Readiness | PASS for the tested local PoC | 45 tests; Ruff, compileall and dependency checks; actual browser run |
 | Real AI Readiness | BLOCKED | Official DeepSeek actually returned HTTP402, including a fresh retry requested by user |
 | Data Reliability | PARTIAL | Seven real endpoints, retained primary evidence, 101 pending observations; no autonomous approval |
 | Monitoring Readiness | PASS for controlled execution | Actual Windows scheduled run and persistent slot; repeated live collection with no duplicate new content |
@@ -136,9 +136,9 @@ The latest machine-readable state, run IDs, provider failure, source URLs, artif
 
 **Commands Executed:** Full tests/lint/compile/dependency checks, two OpenSpec validations, browser acceptance, Artifact Tool export/finalizer/import and per-slide visual review.
 
-**Test Results:** 43 tests passed with one upstream deprecation warning; Ruff, compileall, pip check and specs passed. Five-slide PPTX package/layout/import checks passed. No fabricated ROI or successful AI claim.
+**Test Results:** 45 tests passed with one upstream deprecation warning; Ruff, compileall, pip check and specs passed. Five-slide PPTX package/layout/import checks passed. No fabricated ROI or successful AI claim. Final PDF review also caught invalid global publication metadata taking precedence over article time and a metadata-only event duplicate; both were reproduced in failing tests, repaired and rechecked against retained original evidence.
 
-**Evidence:** `output/slides/London_Office_Intelligence_Business_Demo_v2.pptx`, slide PNGs, finalizer validation JSON, final receipt and browser evidence.
+**Evidence:** `output/slides/London_Office_Intelligence_Business_Demo_v3.pptx`, slide PNGs, finalizer validation JSON, final receipt and browser evidence.
 
 **Known Limitations:** Overall business PoC remains PARTIAL because live AI is blocked and data/external delivery coverage is incomplete. Initial independent code review found five issues that were reproduced, fixed and regression-tested; a second independent review attempt hit a reviewer usage limit, so no second-review pass is claimed.
 

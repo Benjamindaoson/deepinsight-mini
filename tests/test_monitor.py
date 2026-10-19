@@ -56,3 +56,13 @@ def test_retracted_observation_invalidates_signal(tmp_path):
     s.execute("INSERT INTO signals(id,observation_id,status) VALUES ('s','x','ACTIVE')")
     s.invalidate()
     assert s.one("SELECT status FROM signals")["status"] == "INVALIDATED"
+
+
+def test_missing_publication_metadata_cannot_duplicate_existing_event(tmp_path):
+    s=Store(tmp_path/'db.sqlite')
+    run_monitor(s,'test',sources=[SOURCE],reader=lambda _: [document()],generate=False)
+    changed_metadata=document()
+    changed_metadata['published_at']=None
+    second=run_monitor(s,'test',sources=[SOURCE],reader=lambda _: [changed_metadata],generate=False)
+    assert second['new_events']==0
+    assert s.one('SELECT count(*) n FROM events')['n']==1
