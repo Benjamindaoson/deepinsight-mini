@@ -1,6 +1,5 @@
 import hashlib
 import json
-from pathlib import Path
 import pymupdf as fitz
 from app.config import ROOT
 from app.database import Store
